@@ -1,32 +1,35 @@
+import * as Haptics from "expo-haptics";
 import { Link } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function Index() {
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>AL</Text>
-      <Text style={styles.subtitle}>Know Your Rights</Text>
-      <Text style={styles.description}>
-        Instant access to your legal rights when dealing with customs, 
-        police, and government officials.
-      </Text>
-
+      <View style={styles.header}>
+        <Text style={styles.title}>AL</Text>
+        <Text style={styles.banner}>Know Your Rights</Text>
+      </View>
+      
       <View style={styles.buttonContainer}>
-        <Link href="/scenarios" asChild>
-          <TouchableOpacity style={styles.button}>
-            <Text style={styles.buttonText}>Browse Scenarios</Text>
+      <Link href="/locations" asChild>
+        <TouchableOpacity style={styles.button} onPress={handlePress}>
+          <Text style={styles.buttonText}>Where You At?</Text>
+        </TouchableOpacity>
+        </Link>
+
+        <Link href="/incidentlogger" asChild>
+          <TouchableOpacity style={styles.button} onPress={handlePress}>
+            <Text style={styles.buttonText}>Log Incident</Text>
           </TouchableOpacity>
         </Link>
 
         <Link href="/audiorecorder" asChild>
-          <TouchableOpacity style={styles.button}>
+          <TouchableOpacity style={styles.button} onPress={handlePress}>
             <Text style={styles.buttonText}>Record Audio</Text>
-          </TouchableOpacity>
-        </Link>
-
-        <Link href="/incidentlogger" asChild>
-          <TouchableOpacity style={styles.button}>
-            <Text style={styles.buttonText}>Log Incident</Text>
           </TouchableOpacity>
         </Link>
       </View>
@@ -37,44 +40,46 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#0a0a0f",
+    padding: 20,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#1a1a2e",
-    padding: 20,
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 60,
   },
   title: {
-    fontSize: 64,
-    fontWeight: "bold",
+    fontSize: 72,
     color: "#ffffff",
-    marginBottom: 10,
+    marginBottom: 15,
+    fontWeight: "300",
+    letterSpacing: 8,
   },
-  subtitle: {
-    fontSize: 24,
-    color: "#00d4ff",
-    marginBottom: 20,
-  },
-  description: {
+  banner: {
     fontSize: 16,
-    color: "#e8e8e8",
-    textAlign: "center",
-    lineHeight: 24,
-    marginBottom: 40,
+    color: "#888888",
+    fontWeight: "300",
+    letterSpacing: 2,
+    textTransform: "uppercase",
   },
   buttonContainer: {
     width: "100%",
-    gap: 15,
+    alignItems: "center",
   },
   button: {
-    backgroundColor: "#0f3460",
-    padding: 18,
-    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    padding: 28,
+    width: 300,
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#00d4ff",
+    marginBottom: 20,
+    borderLeftWidth: 3,
+    borderLeftColor: "#ffffff",
   },
   buttonText: {
     color: "#ffffff",
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "300",
+    letterSpacing: 0.5,
   },
 });
