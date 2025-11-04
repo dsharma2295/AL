@@ -1,7 +1,8 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import * as Sharing from "expo-sharing";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView, Swipeable } from "react-native-gesture-handler";
 
@@ -18,9 +19,30 @@ export default function AudioRecorder() {
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [playbackPosition, setPlaybackPosition] = useState(0);
   
   const soundRef = useRef<Audio.Sound | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+  loadRecordingsFromStorage();
+}, []);
+
+const loadRecordingsFromStorage = async () => {
+  try {
+    const stored = await AsyncStorage.getItem('recordings');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      const loadedRecordings = parsed.map((rec: any) => ({
+        ...rec,
+        date: new Date(rec.date),
+      }));
+      setRecordings(loadedRecordings);
+    }
+  } catch (err) {
+    console.error('Load recordings error:', err);
+  }
+};
 
   async function startRecording() {
     try {
@@ -56,78 +78,94 @@ export default function AudioRecorder() {
   }
 
   async function stopRecording() {
-    if (!recording) return;
+  if (!recording) return;
 
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-
-      setIsRecording(false);
-      await recording.stopAndUnloadAsync();
-      
-      const uri = recording.getURI();
-      
-      if (uri) {
-        const newRecording: Recording = {
-          id: Date.now().toString(),
-          uri: uri,
-          duration: recordingDuration,
-          date: new Date(),
-        };
-        
-        setRecordings([newRecording, ...recordings]);
-      }
-      
-      setRecording(null);
-      setRecordingDuration(0);
-      
-    } catch (err: any) {
-      console.error('Stop error:', err);
-      setIsRecording(false);
-      Alert.alert("Error", "Failed to save recording.");
-    }
-  }
-
-  async function playRecording(recordingItem: Recording) {
   try {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    if (soundRef.current) {
-      await soundRef.current.unloadAsync();
-      soundRef.current = null;
-      setPlayingId(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
 
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-    });
-
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: recordingItem.uri },
-      { shouldPlay: true }
-    );
+    setIsRecording(false);
+    await recording.stopAndUnloadAsync();
     
-    soundRef.current = sound;
-    setPlayingId(recordingItem.id);
-
-    sound.setOnPlaybackStatusUpdate((status) => {
-      if (status.isLoaded && status.didJustFinish) {
-        setPlayingId(null);
-        soundRef.current = null;
+    const uri = recording.getURI();
+    
+    if (uri) {
+      const newRecording: Recording = {
+        id: Date.now().toString(),
+        uri: uri,
+        duration: recordingDuration,
+        date: new Date(),
+      };
+      
+      setRecordings([newRecording, ...recordings]);
+      
+      // SAVE TO ASYNCSTORAGE
+      try {
+        const stored = await AsyncStorage.getItem('recordings');
+        const savedRecordings = stored ? JSON.parse(stored) : [];
+        savedRecordings.unshift(newRecording);
+        await AsyncStorage.setItem('recordings', JSON.stringify(savedRecordings));
+      } catch (err) {
+        console.error('Failed to save recording to storage:', err);
       }
-    });
-
+    }
+    
+    setRecording(null);
+    setRecordingDuration(0);
+    
   } catch (err: any) {
-    console.error('Play error:', err);
-    Alert.alert("Error", "Failed to play recording.");
+    console.error('Stop error:', err);
+    setIsRecording(false);
+    Alert.alert("Error", "Failed to save recording.");
   }
 }
+
+  async function playRecording(recordingItem: Recording) {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+        setPlayingId(null);
+        setPlaybackPosition(0);
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: recordingItem.uri },
+        { shouldPlay: true },
+        (status) => {
+          if (status.isLoaded && status.isPlaying) {
+            const positionSeconds = Math.floor(status.positionMillis / 1000);
+            setPlaybackPosition(positionSeconds);
+          }
+          
+          if (status.isLoaded && status.didJustFinish) {
+            setPlayingId(null);
+            soundRef.current = null;
+            setPlaybackPosition(0);
+          }
+        }
+      );
+      
+      soundRef.current = sound;
+      setPlayingId(recordingItem.id);
+
+    } catch (err: any) {
+      console.error('Play error:', err);
+      Alert.alert("Error", "Failed to play recording.");
+    }
+  }
 
   async function pausePlayback() {
     if (soundRef.current) {
@@ -135,22 +173,9 @@ export default function AudioRecorder() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         await soundRef.current.pauseAsync();
         setPlayingId(null);
+        setPlaybackPosition(0);
       } catch (err) {
         console.error('Pause error:', err);
-      }
-  }
-}
-
-  async function stopPlayback() {
-    if (soundRef.current) {
-      try {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-        setPlayingId(null);
-      } catch (err) {
-        console.error('Stop playback error:', err);
       }
     }
   }
@@ -184,9 +209,6 @@ export default function AudioRecorder() {
         {
           text: "Cancel",
           style: "cancel",
-          onPress: () => {
-            // Swipeable will auto-close
-          }
         },
         {
           text: "Delete",
@@ -194,7 +216,7 @@ export default function AudioRecorder() {
           onPress: () => {
             setRecordings(recordings.filter(r => r.id !== id));
             if (playingId === id) {
-              stopPlayback();
+              pausePlayback();
             }
           },
         },
@@ -262,18 +284,19 @@ export default function AudioRecorder() {
             </Text>
 
             {recordings.map((item) => (
-  <RecordingItem
-    key={item.id}
-    item={item}
-    isPlaying={playingId === item.id}
-    onPlay={() => playRecording(item)}
-    onPause={() => pausePlayback()}
-    onShare={() => shareRecording(item)}
-    onDelete={() => confirmDelete(item.id)}
-    formatDate={formatDate}
-    formatDuration={formatDuration}
-  />
-))}
+              <RecordingItem
+                key={item.id}
+                item={item}
+                isPlaying={playingId === item.id}
+                playbackPosition={playbackPosition}
+                onPlay={() => playRecording(item)}
+                onPause={() => pausePlayback()}
+                onShare={() => shareRecording(item)}
+                onDelete={() => confirmDelete(item.id)}
+                formatDate={formatDate}
+                formatDuration={formatDuration}
+              />
+            ))}
           </View>
         )}
       </ScrollView>
@@ -283,7 +306,8 @@ export default function AudioRecorder() {
 
 function RecordingItem({ 
   item, 
-  isPlaying, 
+  isPlaying,
+  playbackPosition,
   onPlay, 
   onPause,
   onShare, 
@@ -293,6 +317,7 @@ function RecordingItem({
 }: {
   item: Recording;
   isPlaying: boolean;
+  playbackPosition: number;
   onPlay: () => void;
   onPause: () => void;
   onShare: () => void;
@@ -320,9 +345,15 @@ function RecordingItem({
       <View style={styles.recordingCard}>
         <View style={styles.recordingInfo}>
           <Text style={styles.recordingDate}>{formatDate(item.date)}</Text>
-          <Text style={styles.recordingDuration}>
-            {formatDuration(item.duration)}
-          </Text>
+          {isPlaying ? (
+            <Text style={styles.playbackTimer}>
+              {formatDuration(playbackPosition)} / {formatDuration(item.duration)}
+            </Text>
+          ) : (
+            <Text style={styles.recordingDuration}>
+              {formatDuration(item.duration)}
+            </Text>
+          )}
         </View>
 
         <View style={styles.recordingActions}>
@@ -465,6 +496,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#666666",
     fontWeight: "300",
+  },
+  playbackTimer: {
+    fontSize: 13,
+    color: "#2ecc71",
+    fontWeight: "500",
   },
   recordingActions: {
     flexDirection: "row",

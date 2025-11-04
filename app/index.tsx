@@ -21,7 +21,7 @@ export default function Index() {
         </TouchableOpacity>
         </Link>
 
-        <Link href="/incidentlogger" asChild>
+        <Link href="/incidenthub" asChild>
           <TouchableOpacity style={styles.button} onPress={handlePress}>
             <Text style={styles.buttonText}>Log Incident</Text>
           </TouchableOpacity>
