@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -16,12 +16,15 @@ import {
   View
 } from "react-native";
 
+
 interface Recording {
   id: string;
   uri: string;
   duration: number;
   date: Date;
+  customName?: string;  // Add this
 }
+
 
 interface SavedIncident {
   id: string;
@@ -47,9 +50,24 @@ export default function IncidentLogger() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [dateError, setDateError] = useState("");
 
-  useEffect(() => {
-    loadRecordings();
-  }, []);
+const params = useLocalSearchParams();
+
+useEffect(() => {
+  loadRecordings();
+  
+  // Check if audio was pre-attached from Audio Recorder
+  if (params.audioId && params.audioUri && params.audioName && params.audioDuration) {
+    const preAttachedAudio: Recording = {
+      id: params.audioId as string,
+      uri: params.audioUri as string,
+      duration: parseInt(params.audioDuration as string),
+      date: new Date(),
+      customName: params.audioName as string,
+    };
+    setSelectedAudio(preAttachedAudio);
+  }
+}, []);
+
 
   const loadRecordings = async () => {
     try {
@@ -145,7 +163,7 @@ export default function IncidentLogger() {
       location,
       description,
       audioUri: selectedAudio?.uri,
-      audioFileName: selectedAudio ? `Recording from ${formatDateTime(selectedAudio.date)}` : undefined,
+      audioFileName: selectedAudio ? (selectedAudio.customName || `Recording from ${formatDateTime(selectedAudio.date)}`) : undefined,
       date: dateInput,
       time: formatTimeDisplay(),
       createdAt: new Date(),
@@ -198,6 +216,13 @@ export default function IncidentLogger() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+const getAudioDisplayText = (audio: Recording): string => {
+  if (audio.customName) {
+    return audio.customName;
+  }
+  return formatDateTime(audio.date);
+};
 
   const removeAudio = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -257,7 +282,7 @@ export default function IncidentLogger() {
           {selectedAudio ? (
             <View style={styles.attachedAudioContainer}>
               <Text style={styles.attachedAudioText}>
-                ✓ Audio: {formatDateTime(selectedAudio.date)}
+                Audio: {selectedAudio.customName || formatDateTime(selectedAudio.date)}
               </Text>
               <TouchableOpacity 
                 style={styles.removeAudioButton}
@@ -309,8 +334,8 @@ export default function IncidentLogger() {
                       }}
                     >
                       <Text style={styles.recordingDate}>
-                        {formatDateTime(rec.date)}
-                      </Text>
+  {rec.customName || formatDateTime(rec.date)}
+</Text>
                       <Text style={styles.recordingDuration}>
                         {formatDuration(rec.duration)}
                       </Text>

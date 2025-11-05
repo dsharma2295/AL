@@ -1,4 +1,5 @@
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
 
@@ -30,42 +31,42 @@ export default function Massachusetts() {
         ]}
       >
         <CategoryCard
-          title="Traffic Stop Rights"
-          count="Coming Soon"
-          borderColor="#e74c3c"
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            // router.push({ pathname: "/massrights", params: { category: "traffic_stop" } });
-          }}
-        />
-
-        <CategoryCard
-          title="License & Registration"
-          count="Coming Soon"
-          borderColor="#3498db"
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            // Future route
-          }}
-        />
-
-        <CategoryCard
-          title="DUI Checkpoint"
-          count="Coming Soon"
-          borderColor="#f39c12"
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            // Future route
-          }}
-        />
-
-        <CategoryCard
-          title="Vehicle Search Rights"
-          count="Coming Soon"
+          title="What Police Can Do"
+          count="5 items"
           borderColor="#2ecc71"
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            // Future route
+            router.push({ pathname: "/massrights", params: { category: "can_do" } });
+          }}
+        />
+
+        <CategoryCard
+          title="What Police Cannot Do"
+          count="5 items"
+          borderColor="#e74c3c"
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push({ pathname: "/massrights", params: { category: "cannot_do" } });
+          }}
+        />
+
+        <CategoryCard
+          title="Your Rights"
+          count="7 items"
+          borderColor="#3498db"
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push({ pathname: "/massrights", params: { category: "your_rights" } });
+          }}
+        />
+
+        <CategoryCard
+          title="Quick Response Phrases"
+          count="6 phrases"
+          borderColor="#f39c12"
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push({ pathname: "/massrights", params: { category: "quick_phrases" } });
           }}
         />
       </Animated.View>

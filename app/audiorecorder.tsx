@@ -1,9 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useEffect, useRef, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Animated, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView, Swipeable } from "react-native-gesture-handler";
 
 interface Recording {
@@ -11,6 +12,7 @@ interface Recording {
   uri: string;
   duration: number;
   date: Date;
+  customName?: string;
 }
 
 export default function AudioRecorder() {
@@ -20,29 +22,42 @@ export default function AudioRecorder() {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [playbackPosition, setPlaybackPosition] = useState(0);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [renameId, setRenameId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [renameText, setRenameText] = useState("");
   
   const soundRef = useRef<Audio.Sound | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-  loadRecordingsFromStorage();
-}, []);
+    loadRecordingsFromStorage();
+  }, []);
 
-const loadRecordingsFromStorage = async () => {
-  try {
-    const stored = await AsyncStorage.getItem('recordings');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      const loadedRecordings = parsed.map((rec: any) => ({
-        ...rec,
-        date: new Date(rec.date),
-      }));
-      setRecordings(loadedRecordings);
+  const loadRecordingsFromStorage = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('recordings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const loadedRecordings = parsed.map((rec: any) => ({
+          ...rec,
+          date: new Date(rec.date),
+        }));
+        setRecordings(loadedRecordings);
+      }
+    } catch (err) {
+      console.error('Load recordings error:', err);
     }
-  } catch (err) {
-    console.error('Load recordings error:', err);
-  }
-};
+  };
+
+  const saveRecordingsToStorage = async (updatedRecordings: Recording[]) => {
+    try {
+      await AsyncStorage.setItem('recordings', JSON.stringify(updatedRecordings));
+    } catch (err) {
+      console.error('Save recordings error:', err);
+    }
+  };
 
   async function startRecording() {
     try {
@@ -78,51 +93,43 @@ const loadRecordingsFromStorage = async () => {
   }
 
   async function stopRecording() {
-  if (!recording) return;
+    if (!recording) return;
 
-  try {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-
-    setIsRecording(false);
-    await recording.stopAndUnloadAsync();
-    
-    const uri = recording.getURI();
-    
-    if (uri) {
-      const newRecording: Recording = {
-        id: Date.now().toString(),
-        uri: uri,
-        duration: recordingDuration,
-        date: new Date(),
-      };
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       
-      setRecordings([newRecording, ...recordings]);
-      
-      // SAVE TO ASYNCSTORAGE
-      try {
-        const stored = await AsyncStorage.getItem('recordings');
-        const savedRecordings = stored ? JSON.parse(stored) : [];
-        savedRecordings.unshift(newRecording);
-        await AsyncStorage.setItem('recordings', JSON.stringify(savedRecordings));
-      } catch (err) {
-        console.error('Failed to save recording to storage:', err);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
       }
+
+      setIsRecording(false);
+      await recording.stopAndUnloadAsync();
+      
+      const uri = recording.getURI();
+      
+      if (uri) {
+        const newRecording: Recording = {
+          id: Date.now().toString(),
+          uri: uri,
+          duration: recordingDuration,
+          date: new Date(),
+        };
+        
+        const updatedRecordings = [newRecording, ...recordings];
+        setRecordings(updatedRecordings);
+        await saveRecordingsToStorage(updatedRecordings);
+      }
+      
+      setRecording(null);
+      setRecordingDuration(0);
+      
+    } catch (err: any) {
+      console.error('Stop error:', err);
+      setIsRecording(false);
+      Alert.alert("Error", "Failed to save recording.");
     }
-    
-    setRecording(null);
-    setRecordingDuration(0);
-    
-  } catch (err: any) {
-    console.error('Stop error:', err);
-    setIsRecording(false);
-    Alert.alert("Error", "Failed to save recording.");
   }
-}
 
   async function playRecording(recordingItem: Recording) {
     try {
@@ -200,44 +207,44 @@ const loadRecordingsFromStorage = async () => {
     }
   }
 
-  function confirmDelete(id: string) {
+  function openRenameModal(id: string) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const rec = recordings.find(r => r.id === id);
+    setRenameId(id);
+    setRenameText(rec?.customName || "");
+    setShowRenameModal(true);
+  }
+
+  async function saveRename() {
+    if (!renameId || !renameText.trim()) {
+      Alert.alert("Invalid Name", "Please enter a name for the recording.");
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      "Delete Recording",
-      "Are you sure you want to delete this recording?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            setRecordings(recordings.filter(r => r.id !== id));
-            if (playingId === id) {
-              pausePlayback();
-            }
-          },
-        },
-      ]
-    );
-  }
 
-  function formatDuration(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  }
-
-  function formatDate(date: Date): string {
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    const updatedRecordings = recordings.map(rec => {
+      if (rec.id === renameId) {
+        return { ...rec, customName: renameText.trim() };
+      }
+      return rec;
     });
+
+    setRecordings(updatedRecordings);
+    await saveRecordingsToStorage(updatedRecordings);
+    
+    setShowRenameModal(false);
+    setRenameId(null);
+    setRenameText("");
   }
+
+  function openDeleteModal(id: string) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setDeleteId(id);
+    setShowDeleteModal(true);
+  }
+
+  
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -273,7 +280,7 @@ const loadRecordingsFromStorage = async () => {
           <Text style={styles.hint}>
             {isRecording 
               ? "Audio stored locally on your device" 
-              : "Encrypted local storage • Swipe left to delete"}
+              : "Swipe right: Rename/Delete • Swipe left: Log Incident"}
           </Text>
         </View>
 
@@ -289,19 +296,171 @@ const loadRecordingsFromStorage = async () => {
                 item={item}
                 isPlaying={playingId === item.id}
                 playbackPosition={playbackPosition}
-                onPlay={() => playRecording(item)}
-                onPause={() => pausePlayback()}
+                onPlay={() => {
+                  if (playingId === item.id) {
+                    pausePlayback();
+                  } else {
+                    playRecording(item);
+                  }
+                }}
                 onShare={() => shareRecording(item)}
-                onDelete={() => confirmDelete(item.id)}
-                formatDate={formatDate}
+                onRename={() => openRenameModal(item.id)}
+                onDelete={() => openDeleteModal(item.id)}
+                onLogIncident={() => logIncidentWithAudio(item)}
+                getDisplayName={getRecordingDisplayName}
                 formatDuration={formatDuration}
               />
             ))}
           </View>
         )}
+
+        {/* RENAME MODAL */}
+        <Modal
+          visible={showRenameModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowRenameModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Rename Recording</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter name (e.g., Officer Smith)"
+                placeholderTextColor="#666666"
+                value={renameText}
+                onChangeText={setRenameText}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={saveRename}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancel}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowRenameModal(false);
+                    setRenameText("");
+                  }}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalConfirm}
+                  onPress={saveRename}
+                >
+                  <Text style={styles.modalConfirmText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* DELETE MODAL */}
+        <Modal
+          visible={showDeleteModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDeleteModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Delete Recording</Text>
+              <Text style={styles.modalMessage}>
+                Are you sure you want to delete this recording? This action cannot be undone.
+              </Text>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancel}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowDeleteModal(false);
+                    setDeleteId(null);
+                  }}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalConfirm, styles.modalDelete]}
+                  onPress={deleteRecording}
+                >
+                  <Text style={styles.modalConfirmText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </GestureHandlerRootView>
   );
+
+  async function deleteRecording() {
+    if (!deleteId) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    if (playingId === deleteId && soundRef.current) {
+      await soundRef.current.stopAsync();
+      await soundRef.current.unloadAsync();
+      soundRef.current = null;
+      setPlayingId(null);
+    }
+
+    const updatedRecordings = recordings.filter(r => r.id !== deleteId);
+    setRecordings(updatedRecordings);
+    await saveRecordingsToStorage(updatedRecordings);
+    
+    setShowDeleteModal(false);
+    setDeleteId(null);
+  }
+
+function logIncidentWithAudio(recordingItem: Recording) {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  
+  const displayName = getRecordingDisplayName(recordingItem);
+  
+  router.push({
+    pathname: "/incidentlogger",
+    params: {
+      audioId: recordingItem.id,
+      audioUri: recordingItem.uri,
+      audioName: displayName,
+      audioDuration: recordingItem.duration.toString(),
+    }
+  });
+}
+
+  function formatDuration(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  function formatDate(date: Date): string {
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  function getRecordingDisplayName(rec: Recording): string {
+    if (rec.customName) {
+      const dateStr = rec.date.toLocaleDateString('en-US', {
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric',
+      });
+      const timeStr = rec.date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      }).replace(/\s/g, '');
+      return `${rec.customName}_${dateStr}_${timeStr}`;
+    }
+    return formatDate(rec.date);
+  }
 }
 
 function RecordingItem({ 
@@ -309,42 +468,87 @@ function RecordingItem({
   isPlaying,
   playbackPosition,
   onPlay, 
-  onPause,
-  onShare, 
-  onDelete, 
-  formatDate, 
-  formatDuration 
+  onShare,
+  onRename,
+  onDelete,
+  onLogIncident,
+  getDisplayName,
+  formatDuration
 }: {
   item: Recording;
   isPlaying: boolean;
   playbackPosition: number;
   onPlay: () => void;
-  onPause: () => void;
   onShare: () => void;
+  onRename: () => void;
   onDelete: () => void;
-  formatDate: (date: Date) => string;
+  onLogIncident: () => void;
+  getDisplayName: (rec: Recording) => string;
   formatDuration: (seconds: number) => string;
 }) {
   
-  const renderRightActions = () => {
-    return (
+  const renderRightActions = (progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
+  const trans = dragX.interpolate({
+    inputRange: [-200, 0],
+    outputRange: [0, 200],
+    extrapolate: 'clamp',
+  });
+
+  return (
+    <Animated.View 
+      style={[
+        styles.rightActions, 
+        { transform: [{ translateX: trans }] }
+      ]}
+    >
+      <TouchableOpacity 
+        style={styles.renameAction}
+        onPress={onRename}
+      >
+        <Text style={styles.actionText}>Rename</Text>
+      </TouchableOpacity>
       <TouchableOpacity 
         style={styles.deleteAction}
         onPress={onDelete}
       >
-        <Text style={styles.deleteText}>Delete</Text>
+        <Text style={styles.actionText}>Delete</Text>
       </TouchableOpacity>
-    );
-  };
+    </Animated.View>
+  );
+};
+
+  const renderLeftActions = (progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
+  const trans = dragX.interpolate({
+    inputRange: [0, 120],
+    outputRange: [-120, 0],
+    extrapolate: 'clamp',
+  });
+
+  return (
+    <Animated.View 
+      style={{ transform: [{ translateX: trans }] }}
+    >
+      <TouchableOpacity 
+        style={styles.logIncidentAction}
+        onPress={onLogIncident}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.actionText}>Log Incident</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
 
   return (
     <Swipeable
+      renderLeftActions={renderLeftActions}
       renderRightActions={renderRightActions}
+      overshootLeft={false}
       overshootRight={false}
     >
       <View style={styles.recordingCard}>
         <View style={styles.recordingInfo}>
-          <Text style={styles.recordingDate}>{formatDate(item.date)}</Text>
+          <Text style={styles.recordingDate}>{getDisplayName(item)}</Text>
           {isPlaying ? (
             <Text style={styles.playbackTimer}>
               {formatDuration(playbackPosition)} / {formatDuration(item.duration)}
@@ -359,7 +563,7 @@ function RecordingItem({
         <View style={styles.recordingActions}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={isPlaying ? onPause : onPlay}
+            onPress={onPlay}
           >
             <Text style={styles.actionIcon}>
               {isPlaying ? "❚❚" : "▶"}
@@ -517,16 +721,97 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: "#ffffff",
   },
+  rightActions: {
+    flexDirection: "row",
+  },
+  renameAction: {
+    backgroundColor: "#3498db",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 100,
+  },
   deleteAction: {
     backgroundColor: "#e74c3c",
     justifyContent: "center",
     alignItems: "center",
     width: 100,
   },
-  deleteText: {
+logIncidentAction: {
+  backgroundColor: "#f39c12",
+  justifyContent: "center",
+  alignItems: "center",
+  width: 120,
+  height: '100%',
+  paddingHorizontal: 20,
+},
+  actionText: {
     color: "#ffffff",
     fontWeight: "600",
     fontSize: 14,
-    letterSpacing: 0.5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 12,
+    padding: 24,
+    width: "85%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "300",
+    color: "#ffffff",
+    marginBottom: 16,
+    textAlign: "center",
+    letterSpacing: 1,
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: "#cccccc",
+    marginBottom: 20,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  modalInput: {
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderLeftWidth: 3,
+    borderLeftColor: "#3498db",
+    padding: 16,
+    color: "#ffffff",
+    fontSize: 15,
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  modalCancel: {
+    flex: 1,
+    padding: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    alignItems: "center",
+  },
+  modalCancelText: {
+    color: "#888888",
+    fontSize: 15,
+    fontWeight: "300",
+  },
+  modalConfirm: {
+    flex: 1,
+    padding: 14,
+    backgroundColor: "#3498db",
+    alignItems: "center",
+  },
+  modalDelete: {
+    backgroundColor: "#e74c3c",
+  },
+  modalConfirmText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });

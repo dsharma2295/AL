@@ -73,6 +73,12 @@ export default function RootLayout() {
           headerTitle: "Incident History",
         }} 
       />
+      <Stack.Screen 
+        name="massrights" 
+        options={{ 
+          headerTitle: "",
+      }} 
+      />
     </Stack>
   );
 }
