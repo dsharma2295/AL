@@ -2,6 +2,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, ScrollView, StyleSheet, Text } from "react-native";
 import { customsScenario, RightCard } from "../data/customs-rights";
+import { ANIMATION_DURATIONS } from "../utils/animations";
 
 export default function RightsCards() {
   const { category } = useLocalSearchParams();
@@ -33,18 +34,18 @@ export default function RightsCards() {
   }
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-    ]).start();
+Animated.parallel([
+  Animated.timing(fadeAnim, {
+    toValue: 1,
+    duration: ANIMATION_DURATIONS.slow,
+    useNativeDriver: true,
+  }),
+  Animated.timing(slideAnim, {
+    toValue: 0,
+    duration: ANIMATION_DURATIONS.slow,
+    useNativeDriver: true,
+  }),
+]).start();
   }, []);
 
   return (

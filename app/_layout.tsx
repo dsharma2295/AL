@@ -1,24 +1,26 @@
 import { Stack } from "expo-router";
+import { RecordingsProvider } from "../context/RecordingsContext";
 
 export default function RootLayout() {
-  return (
-    <Stack
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: "#0a0a0f",
-        },
-        headerTintColor: "#ffffff",
-        headerTitleStyle: {
-          fontWeight: "300",
-          fontSize: 16,
-        },
-        headerTitleAlign: "center",
-        headerBackVisible: false,
-        headerShadowVisible: false,
-        headerLeft: () => null,
-        headerRight: () => null,
-      }}
-    >
+return (
+    <RecordingsProvider>
+      <Stack
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: "#0a0a0f",
+          },
+          headerTintColor: "#ffffff",
+          headerTitleStyle: {
+            fontWeight: "300",
+            fontSize: 16,
+          },
+          headerTitleAlign: "center",
+          headerBackVisible: false,
+          headerShadowVisible: false,
+          headerLeft: () => null,
+          headerRight: () => null,
+        }}
+      >
       <Stack.Screen 
         name="index" 
         options={{ 
@@ -80,5 +82,6 @@ export default function RootLayout() {
       }} 
       />
     </Stack>
+  </RecordingsProvider>
   );
 }

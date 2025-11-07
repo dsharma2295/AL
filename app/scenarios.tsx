@@ -2,24 +2,25 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { ANIMATION_DURATIONS } from '../utils/animations';
 
 export default function Scenarios() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-    ]).start();
+Animated.parallel([
+  Animated.timing(fadeAnim, {
+    toValue: 1,
+    duration: ANIMATION_DURATIONS.slow,
+    useNativeDriver: true,
+  }),
+  Animated.timing(slideAnim, {
+    toValue: 0,
+    duration: ANIMATION_DURATIONS.slow,
+    useNativeDriver: true,
+  }),
+]).start();
   }, []);
 
   return (
@@ -77,21 +78,23 @@ export default function Scenarios() {
 function CategoryCard({ title, count, borderColor, onPress }: { title: string; count: string; borderColor: string; onPress: () => void }) {
   const scaleValue = useRef(new Animated.Value(1)).current;
 
-  const handlePressIn = () => {
-    Animated.spring(scaleValue, {
-      toValue: 0.97,
-      useNativeDriver: true,
-    }).start();
-  };
+const handlePressIn = () => {
+  const springConfig = getSpringConfig();
+  Animated.spring(scaleValue, {
+    toValue: 0.97,
+    ...springConfig,
+    useNativeDriver: true,
+  }).start();
+};
 
-  const handlePressOut = () => {
-    Animated.spring(scaleValue, {
-      toValue: 1,
-      friction: 3,
-      tension: 40,
-      useNativeDriver: true,
-    }).start();
-  };
+const handlePressOut = () => {
+  const springConfig = getSpringConfig();
+  Animated.spring(scaleValue, {
+    toValue: 1,
+    ...springConfig,
+    useNativeDriver: true,
+  }).start();
+};
 
   return (
     <TouchableOpacity
