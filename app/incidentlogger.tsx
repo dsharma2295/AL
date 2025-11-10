@@ -3,6 +3,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
+import { useRecordings } from '../context/RecordingsContext';
 import {
   Alert,
   KeyboardAvoidingView,

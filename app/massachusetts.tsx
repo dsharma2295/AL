@@ -2,7 +2,7 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
-import { ANIMATION_DURATIONS } from '../utils/animations';
+import { ANIMATION_DURATIONS, getSpringConfig } from "../utils/animations";
 
 export default function Massachusetts() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -78,21 +78,23 @@ Animated.parallel([
 function CategoryCard({ title, count, borderColor, onPress }: { title: string; count: string; borderColor: string; onPress: () => void }) {
   const scaleValue = useRef(new Animated.Value(1)).current;
 
-  const handlePressIn = () => {
-    Animated.spring(scaleValue, {
-      toValue: 0.97,
-      useNativeDriver: true,
-    }).start();
-  };
+const handlePressIn = () => {
+  const springConfig = getSpringConfig();
+  Animated.spring(scaleValue, {
+    toValue: 0.97,
+    ...springConfig,
+    useNativeDriver: true,
+  }).start();
+};
 
-  const handlePressOut = () => {
-    Animated.spring(scaleValue, {
-      toValue: 1,
-      friction: 3,
-      tension: 40,
-      useNativeDriver: true,
-    }).start();
-  };
+const handlePressOut = () => {
+  const springConfig = getSpringConfig();
+  Animated.spring(scaleValue, {
+    toValue: 1,
+    ...springConfig,
+    useNativeDriver: true,
+  }).start();
+};
 
   return (
     <TouchableOpacity

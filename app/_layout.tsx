@@ -7,7 +7,7 @@ return (
       <Stack
         screenOptions={{
           headerStyle: {
-            backgroundColor: "#0a0a0f",
+            backgroundColor: "#000",
           },
           headerTintColor: "#ffffff",
           headerTitleStyle: {
@@ -47,10 +47,11 @@ return (
       />
       <Stack.Screen 
         name="rightscards" 
-        options={{ 
-          headerTitle: "",
-        }} 
+         options={{ 
+            headerShown: false
+     }} 
       />
+      
       <Stack.Screen 
         name="audiorecorder" 
         options={{ 
@@ -79,7 +80,13 @@ return (
         name="massrights" 
         options={{ 
           headerTitle: "",
-      }} 
+        }} 
+      />
+      <Stack.Screen 
+  name="quickphrases" 
+  options={{ 
+    headerShown: false
+  }} 
       />
     </Stack>
   </RecordingsProvider>

@@ -1,181 +1,392 @@
+import * as Clipboard from "expo-clipboard";
+import * as Haptics from "expo-haptics";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useRef } from "react";
-import { Animated, ScrollView, StyleSheet, Text } from "react-native";
-import { customsScenario, RightCard } from "../data/customs-rights";
-import { ANIMATION_DURATIONS } from "../utils/animations";
+import { useState } from "react";
+import {
+  Alert,
+  Linking,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import type { RightCard } from "../data/customs-rights";
+import { customsScenario } from "../data/customs-rights";
 
 export default function RightsCards() {
-  const { category } = useLocalSearchParams();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
-  
-  let cards: RightCard[] = [];
-  let title = "";
-  let borderColor = "";
-  let description = "";
+  const params = useLocalSearchParams();
+  const category = params.category as string;
+  const [selectedCard, setSelectedCard] = useState<RightCard | null>(null);
+  const [bookmarkedCards, setBookmarkedCards] = useState<Set<string>>(new Set());
 
-  if (category === "can_do") {
-    cards = customsScenario.rightsCards.filter(card => card.category === 'can_do');
-    title = "What CBP Can Do";
-    borderColor = "#2ecc71";
-  } else if (category === "cannot_do") {
-    cards = customsScenario.rightsCards.filter(card => card.category === 'cannot_do');
-    title = "What CBP Cannot Do";
-    borderColor = "#e74c3c";
-  } else if (category === "your_rights") {
-    cards = customsScenario.rightsCards.filter(card => card.category === 'your_rights');
-    title = "Your Rights";
-    borderColor = "#3498db";
-    description = "Know your rights when entering the United States through airports";
-  } else if (category === "quick_phrases") {
-    title = "Quick Response Phrases";
-    borderColor = "#f39c12";
-    description = "Use these phrases to assert your rights during customs interactions.";
+  const cards = customsScenario.rightsCards.filter(
+    (card) => card.category === category
+  );
+
+  const priorityOrder = { critical: 1, important: 2, info: 3 };
+  const sortedCards = [...cards].sort(
+    (a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]
+  );
+
+  const openCard = (card: RightCard) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedCard(card);
+  };
+
+  const closeModal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedCard(null);
+  };
+
+  const openLegalBasis = async (url: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const canOpen = await Linking.canOpenURL(url);
+    if (canOpen) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert("Cannot Open Link", "Unable to open this legal document.");
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await Clipboard.setStringAsync(text);
+    Alert.alert("Copied", "Content copied to clipboard");
+  };
+
+  const toggleBookmark = (cardId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const newBookmarks = new Set(bookmarkedCards);
+    if (newBookmarks.has(cardId)) {
+      newBookmarks.delete(cardId);
+    } else {
+      newBookmarks.add(cardId);
+    }
+    setBookmarkedCards(newBookmarks);
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case "critical": return "#e74c3c";
+      case "important": return "#f39c12";
+      case "info": return "#95a5a6";
+      default: return "#95a5a6";
+    }
+  };
+
+  const getPriorityLabel = (priority: string) => {
+    switch (priority) {
+      case "critical": return "CRITICAL";
+      case "important": return "IMPORTANT";
+      case "info": return "INFO";
+      default: return "";
+    }
+  };
+
+const getCategoryColor = () => {
+  switch (category) {
+    case "can_do": return "#2ecc71";      // GREEN
+    case "cannot_do": return "#e74c3c";   // RED
+    case "your_rights": return "#3498db"; // BLUE
+    default: return "#3498db";
   }
+};
 
-  useEffect(() => {
-Animated.parallel([
-  Animated.timing(fadeAnim, {
-    toValue: 1,
-    duration: ANIMATION_DURATIONS.slow,
-    useNativeDriver: true,
-  }),
-  Animated.timing(slideAnim, {
-    toValue: 0,
-    duration: ANIMATION_DURATIONS.slow,
-    useNativeDriver: true,
-  }),
-]).start();
-  }, []);
+  const getCategoryTitle = () => {
+    switch (category) {
+      case "can_do": return "What CBP Can Do";
+      case "cannot_do": return "What CBP Cannot Do";
+      case "your_rights": return "Your Rights";
+      default: return "Rights";
+    }
+  };
+
+  const renderCard = (card: RightCard) => {
+    const borderColor = getCategoryColor();
+    const priorityColor = getPriorityColor(card.priority);
+    const isBookmarked = bookmarkedCards.has(card.id);
+
+    return (
+      <TouchableOpacity
+        key={card.id}
+        style={[styles.card, { borderLeftColor: borderColor }]}
+        onPress={() => openCard(card)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.priorityBadge}>
+            <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
+            <Text style={[styles.priorityText, { color: priorityColor }]}>
+              {getPriorityLabel(card.priority)}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={styles.cardTitle}>{card.title}</Text>
+        <Text style={styles.cardSummary}>{card.summary}</Text>
+        <Text style={styles.tapHint}>Tap to read more ▼</Text>
+
+        <View style={styles.cardIcons}>
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              copyToClipboard(card.content);
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={{ marginTop: 5 }} 
+          >
+          <Text style={styles.iconText}>⧉</Text>          
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              toggleBookmark(card.id);
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.iconText}>{isBookmarked ? "★" : "☆"}</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
-    <ScrollView style={styles.container}>
-      <Animated.Text 
-        style={[
-          styles.header,
-          { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
-        ]}
-      >
-        {title}
-      </Animated.Text>
-      
-      {description ? (
-        <Animated.Text 
-          style={[
-            styles.description,
-            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
-          ]}
-        >
-          {description}
-        </Animated.Text>
-      ) : null}
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>{getCategoryTitle()}</Text>
+      </View>
 
-      <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-        {category === "quick_phrases" ? (
-          customsScenario.quickPhrases.map((phrase) => (
-            <Animated.View
-              key={phrase.id}
-              style={[
-                styles.card,
-                { borderLeftColor: borderColor },
-              ]}
-            >
-              <Text style={styles.phraseSituation}>{phrase.situation}</Text>
-              <Text style={styles.phraseText}>"{phrase.phrase}"</Text>
-              <Text style={styles.phraseExplanation}>{phrase.explanation}</Text>
-            </Animated.View>
-          ))
-        ) : (
-          cards.map((card) => (
-            <Animated.View
-              key={card.id}
-              style={[
-                styles.card,
-                { borderLeftColor: borderColor },
-              ]}
-            >
-              <Text style={styles.cardTitle}>{card.title}</Text>
-              <Text style={styles.cardContent}>{card.content}</Text>
-              <Text style={styles.legalBasis}>Legal Basis: {card.legalBasis}</Text>
-            </Animated.View>
-          ))
-        )}
-      </Animated.View>
-    </ScrollView>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {sortedCards.map(renderCard)}
+        <View style={{ height: 40 }} />
+      </ScrollView>
+
+      <Modal
+        visible={selectedCard !== null}
+        transparent={true}
+        animationType="none"
+        onRequestClose={closeModal}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={closeModal}
+        >
+          <View
+            style={[
+              styles.modal,
+              {
+                borderLeftColor: selectedCard ? getCategoryColor() : "#3498db",
+              },
+            ]}
+          >
+            {selectedCard && (
+              <>
+                <View style={styles.modalHeader}>
+                  <View style={styles.priorityBadge}>
+                    <View
+                      style={[
+                        styles.priorityDot,
+                        { backgroundColor: getPriorityColor(selectedCard.priority) },
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.priorityText,
+                        { color: getPriorityColor(selectedCard.priority) },
+                      ]}
+                    >
+                      {getPriorityLabel(selectedCard.priority)}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.modalTitle}>{selectedCard.title}</Text>
+                <Text style={styles.modalContent}>{selectedCard.content}</Text>
+
+                <View style={styles.legalBasisSection}>
+                  <Text style={styles.legalBasisLabel}>LEGAL BASIS</Text>
+                  {selectedCard.legalBasisUrl ? (
+                    <TouchableOpacity
+                      onPress={() => openLegalBasis(selectedCard.legalBasisUrl!)}
+                    >
+                      <Text style={styles.legalBasisLink}>
+                        {selectedCard.legalBasis}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.legalBasisText}>
+                      {selectedCard.legalBasis}
+                    </Text>
+                  )}
+                </View>
+
+                <View style={styles.modalIcons}>
+                  <TouchableOpacity
+                    onPress={() => copyToClipboard(selectedCard.content)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                  <Text style={styles.iconText}>⧉</Text>                  
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => toggleBookmark(selectedCard.id)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={styles.iconText}>
+                      {bookmarkedCards.has(selectedCard.id) ? "★" : "☆"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0a0a0f",
-    padding: 20,
+    backgroundColor: "#000",
   },
   header: {
-    fontSize: 26,
-    fontWeight: "300",
-    color: "#ffffff",
-    marginTop: 5,
-    marginBottom: 40,
-    textAlign: "center",
-    letterSpacing: 1,
-  },
-  description: {
-    fontSize: 13,
-    color: "#666666",
-    marginBottom: 40,
-    lineHeight: 22,
-    fontWeight: "300",
-    textAlign: "center",
     paddingHorizontal: 20,
+    paddingVertical: 5,
+    borderBottomWidth: 10,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
   },
-  card: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    padding: 24,
-    borderRadius: 0,
-    borderLeftWidth: 3,
-    marginBottom: 16,
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#fff",
+    textAlign: "center",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+  },
+card: {
+  backgroundColor: "rgba(255, 255, 255, 0.05)",
+  padding: 16,
+  paddingRight: 70,      // Add this - space for icons
+  paddingBottom: 40,     // Add this - space for icons at bottom
+  marginBottom: 20,
+  borderLeftWidth: 4,
+  position: "relative",
+},
+  cardHeader: {
+    marginBottom: 12,
+  },
+  priorityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  priorityDot: {
+    width: 18,
+    height: 8,
+    borderRadius: 4,
+  },
+  priorityText: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: "300",
-    color: "#ffffff",
-    marginBottom: 12,
-    letterSpacing: 0.5,
-  },
-  cardContent: {
-    fontSize: 14,
-    color: "#cccccc",
+    fontSize: 19,
+    fontWeight: "700",
+    color: "#fff",
     lineHeight: 24,
-    marginBottom: 16,
-    fontWeight: "300",
-    textAlign: "justify",
+    marginBottom: 10,
   },
-  legalBasis: {
-    fontSize: 12,
-    color: "#666666",
-    fontStyle: "italic",
-    fontWeight: "300",
-  },
-  phraseSituation: {
+  cardSummary: {
     fontSize: 14,
-    color: "#f39c12",
-    fontWeight: "400",
-    marginBottom: 12,
+    color: "rgba(255, 255, 255, 0.7)",
+    lineHeight: 20,
+    marginBottom: 18,
+  },
+  tapHint: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.4)",
+    fontStyle: "italic",
+  },
+cardIcons: {
+  position: "absolute",
+  bottom: 12,
+  right: 12,
+  flexDirection: "row",
+  gap: 16,
+  alignItems: "center",  // Add this
+},
+  iconText: {
+    fontSize: 25,
+    color: "rgba(255, 255, 255, 0.5)",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.92)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modal: {
+    backgroundColor: "#1a1a1a",
+    padding: 24,
+    width: "90%",
+    maxHeight: "75%",
+    borderLeftWidth: 4,
+  },
+  modalHeader: {
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#fff",
+    lineHeight: 28,
+    marginBottom: 16,
+  },
+  modalContent: {
+    fontSize: 16,
+    color: "rgba(255, 255, 255, 0.9)",
+    lineHeight: 24,
+    marginBottom: 20,
+  },
+  legalBasisSection: {
+    marginBottom: 20,
+  },
+  legalBasisLabel: {
+    fontSize: 11,
+    color: "rgba(255, 255, 255, 0.5)",
+    marginBottom: 6,
     letterSpacing: 0.5,
   },
-  phraseText: {
-    fontSize: 16,
-    color: "#ffffff",
-    fontWeight: "300",
-    marginBottom: 12,
-    lineHeight: 26,
+  legalBasisLink: {
+    fontSize: 14,
+    color: "#3498db",
+    lineHeight: 20,
   },
-  phraseExplanation: {
-    fontSize: 13,
-    color: "#999999",
-    lineHeight: 22,
-    fontWeight: "300",
-    textAlign: "justify",
+  legalBasisText: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.6)",
+    lineHeight: 20,
   },
+modalIcons: {
+  flexDirection: "row",
+  gap: 16,
+  justifyContent: "flex-end",
+  alignItems: "center",  // Add this
+},
 });
