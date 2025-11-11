@@ -3,7 +3,6 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { useRecordings } from '../context/RecordingsContext';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -42,7 +41,6 @@ interface SavedIncident {
 export default function IncidentLogger() {
   const [officerInfo, setOfficerInfo] = useState("");
   const [location, setLocation] = useState("");
-  const [description, setDescription] = useState("");
   const [selectedAudio, setSelectedAudio] = useState<Recording | undefined>(undefined);
   const [availableRecordings, setAvailableRecordings] = useState<Recording[]>([]);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
@@ -52,6 +50,9 @@ export default function IncidentLogger() {
   const [dateError, setDateError] = useState("");
 
 const params = useLocalSearchParams();
+const [description, setDescription] = useState(
+  params.prefilledDescription ? String(params.prefilledDescription) : ""
+);
 
 useEffect(() => {
   loadRecordings();

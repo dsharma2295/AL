@@ -1,9 +1,10 @@
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
-import { useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   Linking,
   Modal,
   SafeAreaView,
@@ -13,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { GestureHandlerRootView, Swipeable } from "react-native-gesture-handler";
 import type { RightCard } from "../data/customs-rights";
 import { customsScenario } from "../data/customs-rights";
 
@@ -21,6 +23,8 @@ export default function RightsCards() {
   const category = params.category as string;
   const [selectedCard, setSelectedCard] = useState<RightCard | null>(null);
   const [bookmarkedCards, setBookmarkedCards] = useState<Set<string>>(new Set());
+  const [swipedCardId, setSwipedCardId] = useState<string | null>(null);
+  const swipeableRefs = useRef<{ [key: string]: Swipeable | null }>({});
 
   const cards = customsScenario.rightsCards.filter(
     (card) => card.category === category
@@ -68,6 +72,16 @@ export default function RightsCards() {
     setBookmarkedCards(newBookmarks);
   };
 
+  const handleLogIncident = (cardTitle: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push({
+      pathname: "/incidentlogger",
+      params: {
+        prefilledDescription: `Violation: ${cardTitle}`,
+      },
+    });
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "critical": return "#e74c3c";
@@ -86,14 +100,14 @@ export default function RightsCards() {
     }
   };
 
-const getCategoryColor = () => {
-  switch (category) {
-    case "can_do": return "#2ecc71";      // GREEN
-    case "cannot_do": return "#e74c3c";   // RED
-    case "your_rights": return "#3498db"; // BLUE
-    default: return "#3498db";
-  }
-};
+  const getCategoryColor = () => {
+    switch (category) {
+      case "can_do": return "#2ecc71";
+      case "cannot_do": return "#e74c3c";
+      case "your_rights": return "#3498db";
+      default: return "#3498db";
+    }
+  };
 
   const getCategoryTitle = () => {
     switch (category) {
@@ -104,153 +118,206 @@ const getCategoryColor = () => {
     }
   };
 
+const renderLeftActions = (card: RightCard, progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
+  const trans = dragX.interpolate({
+    inputRange: [0, 120],
+    outputRange: [-120, 0],
+    extrapolate: 'clamp',
+  });
+
+  return (
+    <Animated.View 
+      style={[
+        styles.swipeActionContainer,
+        { transform: [{ translateX: trans }] }
+      ]}
+    >
+      <TouchableOpacity 
+        style={styles.logIncidentAction}
+        onPress={() => handleLogIncident(card.title)}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.actionText}>Log Incident</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
   const renderCard = (card: RightCard) => {
     const borderColor = getCategoryColor();
     const priorityColor = getPriorityColor(card.priority);
     const isBookmarked = bookmarkedCards.has(card.id);
-
+const isSwiped = swipedCardId === card.id;
+console.log(`Card ${card.id} - isSwiped:`, isSwiped, 'swipedCardId:', swipedCardId);
     return (
-      <TouchableOpacity
+      <Swipeable
         key={card.id}
-        style={[styles.card, { borderLeftColor: borderColor }]}
-        onPress={() => openCard(card)}
-        activeOpacity={0.7}
+        ref={(ref) => { swipeableRefs.current[card.id] = ref; }}
+          renderLeftActions={(progress, dragX) => renderLeftActions(card, progress, dragX)}
+          overshootLeft={false}
+          overshootRight={false}  // ← Add this line
+          onSwipeableWillOpen={() => {
+          // Close all other swipeables
+          Object.keys(swipeableRefs.current).forEach(key => {
+            if (key !== card.id && swipeableRefs.current[key]) {
+            swipeableRefs.current[key]?.close();
+          }
+           });
+            setSwipedCardId(card.id);
+           }}
+          onSwipeableClose={() => setSwipedCardId(null)}  
       >
-        <View style={styles.cardHeader}>
-          <View style={styles.priorityBadge}>
-            <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
-            <Text style={[styles.priorityText, { color: priorityColor }]}>
-              {getPriorityLabel(card.priority)}
-            </Text>
+        <TouchableOpacity
+style={[
+  styles.card, 
+  { 
+    borderLeftColor: borderColor, 
+    borderLeftWidth: isSwiped ? 0 : 4 
+  }
+]}          onPress={() => openCard(card)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.cardHeader}>
+            <View style={styles.priorityBadge}>
+              <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
+              <Text style={[styles.priorityText, { color: priorityColor }]}>
+                {getPriorityLabel(card.priority)}
+              </Text>
+            </View>
           </View>
-        </View>
 
-        <Text style={styles.cardTitle}>{card.title}</Text>
-        <Text style={styles.cardSummary}>{card.summary}</Text>
-        <Text style={styles.tapHint}>Tap to read more ▼</Text>
+          <Text style={styles.cardTitle}>{card.title}</Text>
+          <Text style={styles.cardSummary}>{card.summary}</Text>
+          <Text style={styles.tapHint}>Tap to read more ▼</Text>
 
-        <View style={styles.cardIcons}>
-          <TouchableOpacity
-            onPress={(e) => {
-              e.stopPropagation();
-              copyToClipboard(card.content);
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={{ marginTop: 5 }} 
-          >
-          <Text style={styles.iconText}>⧉</Text>          
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={(e) => {
-              e.stopPropagation();
-              toggleBookmark(card.id);
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={styles.iconText}>{isBookmarked ? "★" : "☆"}</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
+          {!isSwiped && (
+            <View style={styles.cardIcons}>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  copyToClipboard(card.content);
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={{ marginTop: 5 }}
+              >
+                <Text style={styles.iconText}>⧉</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  toggleBookmark(card.id);
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.iconText}>{isBookmarked ? "★" : "☆"}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </TouchableOpacity>
+      </Swipeable>
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{getCategoryTitle()}</Text>
-      </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>{getCategoryTitle()}</Text>
+        </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {sortedCards.map(renderCard)}
-        <View style={{ height: 40 }} />
-      </ScrollView>
-
-      <Modal
-        visible={selectedCard !== null}
-        transparent={true}
-        animationType="none"
-        onRequestClose={closeModal}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={closeModal}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-          <View
-            style={[
-              styles.modal,
-              {
-                borderLeftColor: selectedCard ? getCategoryColor() : "#3498db",
-              },
-            ]}
+          {sortedCards.map(renderCard)}
+          <View style={{ height: 40 }} />
+        </ScrollView>
+
+        <Modal
+          visible={selectedCard !== null}
+          transparent={true}
+          animationType="none"
+          onRequestClose={closeModal}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={closeModal}
           >
-            {selectedCard && (
-              <>
-                <View style={styles.modalHeader}>
-                  <View style={styles.priorityBadge}>
-                    <View
-                      style={[
-                        styles.priorityDot,
-                        { backgroundColor: getPriorityColor(selectedCard.priority) },
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        styles.priorityText,
-                        { color: getPriorityColor(selectedCard.priority) },
-                      ]}
-                    >
-                      {getPriorityLabel(selectedCard.priority)}
-                    </Text>
+            <View
+              style={[
+                styles.modal,
+                {
+                  borderLeftColor: selectedCard ? getCategoryColor() : "#3498db",
+                },
+              ]}
+            >
+              {selectedCard && (
+                <>
+                  <View style={styles.modalHeader}>
+                    <View style={styles.priorityBadge}>
+                      <View
+                        style={[
+                          styles.priorityDot,
+                          { backgroundColor: getPriorityColor(selectedCard.priority) },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.priorityText,
+                          { color: getPriorityColor(selectedCard.priority) },
+                        ]}
+                      >
+                        {getPriorityLabel(selectedCard.priority)}
+                      </Text>
+                    </View>
                   </View>
-                </View>
 
-                <Text style={styles.modalTitle}>{selectedCard.title}</Text>
-                <Text style={styles.modalContent}>{selectedCard.content}</Text>
+                  <Text style={styles.modalTitle}>{selectedCard.title}</Text>
+                  <Text style={styles.modalContent}>{selectedCard.content}</Text>
 
-                <View style={styles.legalBasisSection}>
-                  <Text style={styles.legalBasisLabel}>LEGAL BASIS</Text>
-                  {selectedCard.legalBasisUrl ? (
-                    <TouchableOpacity
-                      onPress={() => openLegalBasis(selectedCard.legalBasisUrl!)}
-                    >
-                      <Text style={styles.legalBasisLink}>
+                  <View style={styles.legalBasisSection}>
+                    <Text style={styles.legalBasisLabel}>LEGAL BASIS</Text>
+                    {selectedCard.legalBasisUrl ? (
+                      <TouchableOpacity
+                        onPress={() => openLegalBasis(selectedCard.legalBasisUrl!)}
+                      >
+                        <Text style={styles.legalBasisLink}>
+                          {selectedCard.legalBasis}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.legalBasisText}>
                         {selectedCard.legalBasis}
                       </Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <Text style={styles.legalBasisText}>
-                      {selectedCard.legalBasis}
-                    </Text>
-                  )}
-                </View>
+                    )}
+                  </View>
 
-                <View style={styles.modalIcons}>
-                  <TouchableOpacity
-                    onPress={() => copyToClipboard(selectedCard.content)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                  <Text style={styles.iconText}>⧉</Text>                  
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => toggleBookmark(selectedCard.id)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Text style={styles.iconText}>
-                      {bookmarkedCards.has(selectedCard.id) ? "★" : "☆"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </SafeAreaView>
+                  <View style={styles.modalIcons}>
+                    <TouchableOpacity
+                      onPress={() => copyToClipboard(selectedCard.content)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      style={{ marginTop: 5 }}
+                    >
+                      <Text style={styles.iconText}>⧉</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => toggleBookmark(selectedCard.id)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Text style={styles.iconText}>
+                        {bookmarkedCards.has(selectedCard.id) ? "★" : "☆"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -277,13 +344,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
   },
-card: {
+ card: {
   backgroundColor: "rgba(255, 255, 255, 0.05)",
   padding: 16,
-  paddingRight: 70,      // Add this - space for icons
-  paddingBottom: 40,     // Add this - space for icons at bottom
+  paddingRight: 70,
+  paddingBottom: 40,
   marginBottom: 20,
-  borderLeftWidth: 4,
   position: "relative",
 },
   cardHeader: {
@@ -322,17 +388,33 @@ card: {
     color: "rgba(255, 255, 255, 0.4)",
     fontStyle: "italic",
   },
-cardIcons: {
-  position: "absolute",
-  bottom: 12,
-  right: 12,
-  flexDirection: "row",
-  gap: 16,
-  alignItems: "center",  // Add this
-},
+  cardIcons: {
+    position: "absolute",
+    bottom: 12,
+    right: 12,
+    flexDirection: "row",
+    gap: 16,
+    alignItems: "center",
+  },
   iconText: {
     fontSize: 25,
     color: "rgba(255, 255, 255, 0.5)",
+  },
+swipeActionContainer: {
+  marginBottom: 20,  // Match card marginBottom
+},
+logIncidentAction: {
+  backgroundColor: "#f39c12",
+  justifyContent: "center",
+  alignItems: "center",
+  width: 120,
+  height: '100%',  // Now takes height from container
+  paddingHorizontal: 20,
+},
+  actionText: {
+    color: "#ffffff",
+    fontWeight: "600",
+    fontSize: 14,
   },
   modalOverlay: {
     flex: 1,
@@ -383,10 +465,10 @@ cardIcons: {
     color: "rgba(255, 255, 255, 0.6)",
     lineHeight: 20,
   },
-modalIcons: {
-  flexDirection: "row",
-  gap: 16,
-  justifyContent: "flex-end",
-  alignItems: "center",  // Add this
-},
+  modalIcons: {
+    flexDirection: "row",
+    gap: 16,
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
 });

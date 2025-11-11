@@ -353,7 +353,8 @@ const exportIncident = async (incident: SavedIncident) => {
           <View style={styles.incidentsList}>
             {incidents.map((incident) => (
               <Swipeable
-                  renderRightActions={(progress, dragX) => {
+  key={incident.id}
+  renderRightActions={(progress, dragX) => {
                   const trans = dragX.interpolate({
                   inputRange: [-200, 0],
                   outputRange: [0, 200],
