@@ -1,10 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BlurView } from 'expo-blur';
 import * as Haptics from "expo-haptics";
 import * as Linking from "expo-linking";
 import { Link, router } from "expo-router";
 import { useState } from "react";
 import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-
+import Starfield from "../components/Starfield";
+import { colors } from "../theme/colors"; // ← ADD THIS
+import { spacing } from "../theme/spacing"; // ← ADD THIS
 export default function Index() {
   const [showSOSModal, setShowSOSModal] = useState(false);
   const [sosMessage, setSOSMessage] = useState("Emergency - check on me");
@@ -15,26 +18,26 @@ export default function Index() {
 
   const openSOSModal = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    
+
     // Check if emergency contact is set
     const name = await AsyncStorage.getItem("emergency_contact_name");
     const phone = await AsyncStorage.getItem("emergency_contact_phone");
-    
+
     if (!name || !phone) {
       Alert.alert(
         "No Emergency Contact",
         "Please set up your emergency contact in Settings first.",
         [
           { text: "Cancel", style: "cancel" },
-          { 
-            text: "Go to Settings", 
+          {
+            text: "Go to Settings",
             onPress: () => router.push("/settings")
           }
         ]
       );
       return;
     }
-    
+
     setShowSOSModal(true);
   };
 
@@ -66,23 +69,24 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
-<View style={styles.header}>
-  <Text style={styles.title}>AL</Text>
-  <Text style={styles.banner}>Know Your Rights</Text>
-</View>
+      <Starfield count={100} />
+      <View style={styles.header}>
+        <Text style={styles.title}>AL</Text>
+        <Text style={styles.banner}>Know Your Rights</Text>
+      </View>
 
-{/* ADD THIS - Settings Icon */}
-<TouchableOpacity
-  style={styles.settingsIcon}
-  onPress={() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push("/settings");
-  }}
->
-  <Text style={styles.gearIcon}>⚙</Text>
-</TouchableOpacity>
+      {/* ADD THIS - Settings Icon */}
+      <TouchableOpacity
+        style={styles.settingsIcon}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.push("/settings");
+        }}
+      >
+        <Text style={styles.gearIcon}>⚙</Text>
+      </TouchableOpacity>
 
-<View style={styles.buttonContainer}>
+      <View style={styles.buttonContainer}>
         <Link href="/locations" asChild>
           <TouchableOpacity style={styles.button} onPress={handlePress}>
             <Text style={styles.buttonText}>Where You At?</Text>
@@ -116,12 +120,12 @@ export default function Index() {
         </TouchableOpacity>
 
         {/* SOS - Bottom Right */}
-<TouchableOpacity
-  style={[styles.floatingButton, styles.floatingRight]}
-  onPress={openSOSModal}
->
-  <Text style={styles.sosText}>SOS</Text>
-</TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.floatingButton, styles.floatingRight]}
+          onPress={openSOSModal}
+        >
+          <Text style={styles.sosText}>SOS</Text>
+        </TouchableOpacity>
       </View>
 
       {/* SOS MODAL */}
@@ -132,9 +136,9 @@ export default function Index() {
         onRequestClose={() => setShowSOSModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <BlurView intensity={40} tint="dark" style={styles.modalContent}>
             <Text style={styles.modalTitle}>Emergency Contact</Text>
-            
+
             <View style={styles.messageBox}>
               <Text style={styles.messageLabel}>Message to send:</Text>
               <Text style={styles.messageText}>"{sosMessage}"</Text>
@@ -165,7 +169,7 @@ export default function Index() {
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
-          </View>
+          </BlurView>
         </View>
       </Modal>
     </View>
@@ -175,25 +179,25 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0a0a0f",
-    padding: 20,
+    backgroundColor: colors.background.primary,
+    padding: spacing.xl,
     justifyContent: "center",
     alignItems: "center",
   },
   header: {
     alignItems: "center",
-    marginBottom: 60,
+    marginBottom: spacing.massive,
   },
   title: {
     fontSize: 72,
-    color: "#ffffff",
-    marginBottom: 15,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
     fontWeight: "300",
     letterSpacing: 8,
   },
   banner: {
     fontSize: 16,
-    color: "#888888",
+    color: colors.text.disabled,
     fontWeight: "300",
     letterSpacing: 2,
     textTransform: "uppercase",
@@ -203,25 +207,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   button: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: colors.background.card,
     padding: 28,
     width: 300,
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: spacing.xl,
     borderLeftWidth: 3,
-    borderLeftColor: "#ffffff",
+    borderLeftColor: colors.text.primary,
   },
   buttonText: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontSize: 18,
     fontWeight: "300",
     letterSpacing: 0.5,
   },
   floatingIcons: {
     position: "absolute",
-    bottom: 40,
-    left: 20,
-    right: 20,
+    bottom: spacing.huge,
+    left: spacing.xl,
+    right: spacing.xl,
     flexDirection: "row",
     justifyContent: "space-between",
   },
@@ -232,6 +236,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
   },
   floatingLeft: {
     backgroundColor: "rgba(241, 196, 15, 0.15)",
@@ -239,103 +248,109 @@ const styles = StyleSheet.create({
   },
   floatingRight: {
     backgroundColor: "rgba(231, 76, 60, 0.15)",
-    borderColor: "#e74c3c",
+    borderColor: colors.action.danger,
   },
   floatingIcon: {
     fontSize: 28,
     color: "#f1c40f",
   },
-sosText: {
-  fontSize: 16,
-  fontWeight: "700",
-  color: "#e74c3c",
-  letterSpacing: 1,
-},
+  sosText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.action.danger,
+    letterSpacing: 1,
+  },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.92)",
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: spacing.xl,
   },
   modalContent: {
-    backgroundColor: "#1a1a1a",
-    padding: 24,
+    backgroundColor: 'rgba(26, 26, 26, 0.6)',
+    padding: spacing.xxl,
     width: "90%",
     borderLeftWidth: 4,
-    borderLeftColor: "#e74c3c",
+    borderLeftColor: colors.action.danger,
+    overflow: 'hidden',
   },
   modalTitle: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#fff",
-    marginBottom: 20,
+    color: colors.text.primary,
+    marginBottom: spacing.xl,
     textAlign: "center",
   },
   messageBox: {
     backgroundColor: "rgba(231, 76, 60, 0.1)",
-    padding: 16,
-    marginBottom: 24,
+    padding: spacing.lg,
+    marginBottom: spacing.xxl,
     borderLeftWidth: 2,
-    borderLeftColor: "#e74c3c",
+    borderLeftColor: colors.action.danger,
   },
   messageLabel: {
     fontSize: 12,
-    color: "#888",
-    marginBottom: 8,
+    color: colors.text.disabled,
+    marginBottom: spacing.sm,
     letterSpacing: 0.5,
   },
   messageText: {
     fontSize: 15,
-    color: "#fff",
+    color: colors.text.primary,
     fontStyle: "italic",
   },
   modalButtons: {
     flexDirection: "row",
-    gap: 12,
-    marginBottom: 12,
+    gap: spacing.md,
+    marginBottom: spacing.md,
   },
   modalButton: {
     flex: 1,
-    padding: 16,
+    padding: spacing.lg,
     alignItems: "center",
     borderLeftWidth: 2,
   },
   callButton: {
     backgroundColor: "rgba(46, 204, 113, 0.15)",
-    borderLeftColor: "#2ecc71",
+    borderLeftColor: colors.action.success,
   },
   messageButton: {
     backgroundColor: "rgba(52, 152, 219, 0.15)",
-    borderLeftColor: "#3498db",
+    borderLeftColor: colors.action.primary,
   },
   modalButtonText: {
-    color: "#fff",
+    color: colors.text.primary,
     fontSize: 15,
     fontWeight: "600",
     letterSpacing: 0.5,
   },
   cancelButton: {
-    padding: 16,
+    padding: spacing.lg,
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: colors.background.card,
   },
   cancelButtonText: {
-    color: "#888",
+    color: colors.text.disabled,
     fontSize: 15,
     fontWeight: "300",
   },
   settingsIcon: {
-  position: "absolute",
-  top: 60,
-  right: 15,
-  width: 44,
-  height: 44,
-  alignItems: "center",
-  justifyContent: "center",
-},
-gearIcon: {
-  fontSize: 24,
-  color: "rgba(255, 255, 255, 0.3)",
-},
+    position: "absolute",
+    top: spacing.massive,
+    right: spacing.md,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  gearIcon: {
+    fontSize: 24,
+    color: colors.text.tertiary,
+  },
 });

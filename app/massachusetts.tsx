@@ -2,6 +2,8 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { colors } from "../theme/colors";
+import { spacing } from "../theme/spacing";
 import { ANIMATION_DURATIONS, getSpringConfig } from "../utils/animations";
 
 export default function Massachusetts() {
@@ -9,23 +11,23 @@ export default function Massachusetts() {
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-Animated.parallel([
-  Animated.timing(fadeAnim, {
-    toValue: 1,
-    duration: ANIMATION_DURATIONS.slow,
-    useNativeDriver: true,
-  }),
-  Animated.timing(slideAnim, {
-    toValue: 0,
-    duration: ANIMATION_DURATIONS.slow,
-    useNativeDriver: true,
-  }),
-]).start();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: ANIMATION_DURATIONS.slow,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: ANIMATION_DURATIONS.slow,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <Animated.View 
+      <Animated.View
         style={[
           styles.cardsContainer,
           { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
@@ -34,7 +36,7 @@ Animated.parallel([
         <CategoryCard
           title="What Police Can Do"
           count="5 items"
-          borderColor="#2ecc71"
+          borderColor={colors.category.canDo}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.push({ pathname: "/massrights", params: { category: "can_do" } });
@@ -44,7 +46,7 @@ Animated.parallel([
         <CategoryCard
           title="What Police Cannot Do"
           count="5 items"
-          borderColor="#e74c3c"
+          borderColor={colors.category.cannotDo}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.push({ pathname: "/massrights", params: { category: "cannot_do" } });
@@ -54,7 +56,7 @@ Animated.parallel([
         <CategoryCard
           title="Your Rights"
           count="7 items"
-          borderColor="#3498db"
+          borderColor={colors.category.yourRights}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.push({ pathname: "/massrights", params: { category: "your_rights" } });
@@ -64,7 +66,7 @@ Animated.parallel([
         <CategoryCard
           title="Quick Response Phrases"
           count="6 phrases"
-          borderColor="#f39c12"
+          borderColor={colors.category.quickPhrases}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.push({ pathname: "/massrights", params: { category: "quick_phrases" } });
@@ -78,23 +80,23 @@ Animated.parallel([
 function CategoryCard({ title, count, borderColor, onPress }: { title: string; count: string; borderColor: string; onPress: () => void }) {
   const scaleValue = useRef(new Animated.Value(1)).current;
 
-const handlePressIn = () => {
-  const springConfig = getSpringConfig();
-  Animated.spring(scaleValue, {
-    toValue: 0.97,
-    ...springConfig,
-    useNativeDriver: true,
-  }).start();
-};
+  const handlePressIn = () => {
+    const springConfig = getSpringConfig();
+    Animated.spring(scaleValue, {
+      toValue: 0.97,
+      ...springConfig,
+      useNativeDriver: true,
+    }).start();
+  };
 
-const handlePressOut = () => {
-  const springConfig = getSpringConfig();
-  Animated.spring(scaleValue, {
-    toValue: 1,
-    ...springConfig,
-    useNativeDriver: true,
-  }).start();
-};
+  const handlePressOut = () => {
+    const springConfig = getSpringConfig();
+    Animated.spring(scaleValue, {
+      toValue: 1,
+      ...springConfig,
+      useNativeDriver: true,
+    }).start();
+  };
 
   return (
     <TouchableOpacity
@@ -119,32 +121,32 @@ const handlePressOut = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0a0a0f",
+    backgroundColor: colors.background.primary,
   },
   contentContainer: {
-    padding: 20,
-    paddingTop: 30,
+    padding: spacing.xl,
+    paddingTop: spacing.xxxl,
   },
   cardsContainer: {
     gap: 28,
-    paddingBottom: 30,
+    paddingBottom: spacing.xxxl,
   },
   categoryCard: {
     padding: 36,
     borderRadius: 0,
     borderLeftWidth: 3,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: colors.background.card,
   },
   categoryTitle: {
     fontSize: 21,
     fontWeight: "300",
-    color: "#ffffff",
-    marginBottom: 8,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
     letterSpacing: 0.5,
   },
   categoryCount: {
     fontSize: 14,
-    color: "#666666",
+    color: colors.text.disabled,
     fontWeight: "300",
     letterSpacing: 0.5,
   },

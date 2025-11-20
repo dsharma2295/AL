@@ -2,13 +2,15 @@ import { useLocalSearchParams } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, ScrollView, StyleSheet, Text } from "react-native";
 import { massachusettsTrafficScenario, RightCard } from "../data/massachusetts-traffic";
+import { colors } from "../theme/colors";
+import { spacing } from "../theme/spacing";
 import { ANIMATION_DURATIONS } from '../utils/animations';
 
 export default function MassRights() {
   const { category } = useLocalSearchParams();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
-  
+
   let cards: RightCard[] = [];
   let title = "";
   let borderColor = "";
@@ -16,38 +18,38 @@ export default function MassRights() {
   if (category === "can_do") {
     cards = massachusettsTrafficScenario.rightsCards.filter(card => card.category === 'can_do');
     title = "What Police Can Do";
-    borderColor = "#2ecc71";
+    borderColor = colors.category.canDo;
   } else if (category === "cannot_do") {
     cards = massachusettsTrafficScenario.rightsCards.filter(card => card.category === 'cannot_do');
     title = "What Police Cannot Do";
-    borderColor = "#e74c3c";
+    borderColor = colors.category.cannotDo;
   } else if (category === "your_rights") {
     cards = massachusettsTrafficScenario.rightsCards.filter(card => card.category === 'your_rights');
     title = "Your Rights";
-    borderColor = "#3498db";
+    borderColor = colors.category.yourRights;
   } else if (category === "quick_phrases") {
     title = "Quick Response Phrases";
-    borderColor = "#f39c12";
+    borderColor = colors.category.quickPhrases;
   }
 
   useEffect(() => {
-Animated.parallel([
-  Animated.timing(fadeAnim, {
-    toValue: 1,
-    duration: ANIMATION_DURATIONS.slow,
-    useNativeDriver: true,
-  }),
-  Animated.timing(slideAnim, {
-    toValue: 0,
-    duration: ANIMATION_DURATIONS.slow,
-    useNativeDriver: true,
-  }),
-]).start();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: ANIMATION_DURATIONS.slow,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: ANIMATION_DURATIONS.slow,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   return (
     <ScrollView style={styles.container}>
-      <Animated.Text 
+      <Animated.Text
         style={[
           styles.header,
           { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
@@ -94,63 +96,63 @@ Animated.parallel([
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0a0a0f",
-    padding: 20,
+    backgroundColor: colors.background.primary,
+    padding: spacing.xl,
   },
   header: {
     fontSize: 26,
     fontWeight: "300",
-    color: "#ffffff",
+    color: colors.text.primary,
     marginTop: 5,
-    marginBottom: 40,
+    marginBottom: spacing.huge,
     textAlign: "center",
     letterSpacing: 1,
   },
   card: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    padding: 24,
+    backgroundColor: colors.background.card,
+    padding: spacing.xxl,
     borderRadius: 0,
     borderLeftWidth: 3,
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: "300",
-    color: "#ffffff",
-    marginBottom: 12,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
     letterSpacing: 0.5,
   },
   cardContent: {
     fontSize: 14,
-    color: "#cccccc",
+    color: colors.text.secondary,
     lineHeight: 24,
-    marginBottom: 16,
+    marginBottom: spacing.lg,
     fontWeight: "300",
     textAlign: "justify",
   },
   legalBasis: {
     fontSize: 12,
-    color: "#666666",
+    color: colors.text.disabled,
     fontStyle: "italic",
     fontWeight: "300",
   },
   phraseSituation: {
     fontSize: 14,
-    color: "#f39c12",
+    color: colors.category.quickPhrases,
     fontWeight: "400",
-    marginBottom: 12,
+    marginBottom: spacing.md,
     letterSpacing: 0.5,
   },
   phraseText: {
     fontSize: 16,
-    color: "#ffffff",
+    color: colors.text.primary,
     fontWeight: "300",
-    marginBottom: 12,
+    marginBottom: spacing.md,
     lineHeight: 26,
   },
   phraseExplanation: {
     fontSize: 13,
-    color: "#999999",
+    color: colors.text.secondary,
     lineHeight: 22,
     fontWeight: "300",
     textAlign: "justify",

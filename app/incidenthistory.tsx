@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Audio } from "expo-av";
+import { BlurView } from 'expo-blur';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from "expo-haptics";
 import * as Print from "expo-print";
@@ -8,12 +9,15 @@ import * as Sharing from "expo-sharing";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Animated, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView, Swipeable } from "react-native-gesture-handler";
+import { colors } from "../theme/colors";
+import { spacing } from "../theme/spacing";
 
 interface SavedIncident {
   id: string;
   officerInfo: string;
   location: string;
   description: string;
+  audioId?: string;
   audioUri?: string;
   audioFileName?: string;
   date: string;
@@ -35,8 +39,9 @@ export default function IncidentHistory() {
   const [editDateInput, setEditDateInput] = useState("");
   const [editSelectedTime, setEditSelectedTime] = useState(new Date());
   const [showEditTimePicker, setShowEditTimePicker] = useState(false);
-  
   const soundRef = useRef<Audio.Sound | null>(null);
+  const swipeableRefs = useRef<{ [key: string]: Swipeable | null }>({});
+  const [recordingsMap, setRecordingsMap] = useState<{ [key: string]: any }>({});
 
   useEffect(() => {
     loadIncidents();
@@ -54,9 +59,46 @@ export default function IncidentHistory() {
         }));
         setIncidents(incidents);
       }
+
+      const recordingsData = await AsyncStorage.getItem('recordings');
+      if (recordingsData) {
+        const recordings = JSON.parse(recordingsData);
+        const map: { [key: string]: any } = {};
+        recordings.forEach((rec: any) => {
+          map[rec.id] = rec;
+        });
+        setRecordingsMap(map);
+      }
     } catch (err) {
       console.error('Load error:', err);
     }
+  };
+
+  const getCurrentAudioName = (incident: SavedIncident): string => {
+    if (!incident.audioId) {
+      return incident.audioFileName || 'Audio Recording';
+    }
+
+    const recording = recordingsMap[incident.audioId];
+    if (recording) {
+      if (recording.customName) {
+        const date = new Date(recording.date);
+        const dateStr = date.toLocaleDateString('en-US', {
+          month: '2-digit',
+          day: '2-digit',
+          year: 'numeric',
+        });
+        const timeStr = date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        }).replace(/\s/g, '');
+        return `${recording.customName}_${dateStr}_${timeStr}`;
+      }
+      return formatDateTime(new Date(recording.date));
+    }
+
+    return incident.audioFileName || 'Audio Recording (Deleted)';
   };
 
   const saveIncidents = async (updated: SavedIncident[]) => {
@@ -71,31 +113,48 @@ export default function IncidentHistory() {
 
   const deleteIncident = async (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+
     if (playingId === id && soundRef.current) {
       await soundRef.current.stopAsync();
       await soundRef.current.unloadAsync();
       soundRef.current = null;
       setPlayingId(null);
     }
-    
+
     const updated = incidents.filter(inc => inc.id !== id);
     await saveIncidents(updated);
   };
 
-  const confirmDelete = (id: string) => {
-    Alert.alert(
-      "Delete Incident",
-      "Are you sure you want to delete this incident report?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => deleteIncident(id),
-        },
-      ]
-    );
+  const confirmDelete = (incident: SavedIncident) => {
+    if (incident.audioUri) {
+      const currentAudioName = getCurrentAudioName(incident);
+
+      Alert.alert(
+        "Delete Incident",
+        `This incident has an audio recording attached (${currentAudioName}).\n\nThe recording will still be available in Audio Recorder.\n\nDelete incident only?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete Incident",
+            style: "destructive",
+            onPress: () => deleteIncident(incident.id),
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        "Delete Incident",
+        "Are you sure you want to delete this incident report?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: () => deleteIncident(incident.id),
+          },
+        ]
+      );
+    }
   };
 
   const openEditModal = (incident: SavedIncident) => {
@@ -105,22 +164,21 @@ export default function IncidentHistory() {
     setEditLocation(incident.location);
     setEditDescription(incident.description);
     setEditDateInput(incident.date);
-    
-    // Parse time string to Date object
+
     const timeMatch = incident.time.match(/(\d+):(\d+)\s*(AM|PM)/);
     if (timeMatch) {
       let hours = parseInt(timeMatch[1]);
       const minutes = parseInt(timeMatch[2]);
       const ampm = timeMatch[3];
-      
+
       if (ampm === 'PM' && hours !== 12) hours += 12;
       if (ampm === 'AM' && hours === 12) hours = 0;
-      
+
       const timeDate = new Date();
       timeDate.setHours(hours, minutes, 0, 0);
       setEditSelectedTime(timeDate);
     }
-    
+
     setShowEditModal(true);
   };
 
@@ -135,7 +193,7 @@ export default function IncidentHistory() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const timeStr = formatTimeDisplay(editSelectedTime);
-    
+
     const updatedIncident: SavedIncident = {
       ...editingIncident,
       officerInfo: editOfficerInfo,
@@ -146,19 +204,19 @@ export default function IncidentHistory() {
       editedAt: new Date(),
     };
 
-    const updated = incidents.map(inc => 
+    const updated = incidents.map(inc =>
       inc.id === editingIncident.id ? updatedIncident : inc
     );
 
     await saveIncidents(updated);
-    
+
     setShowEditModal(false);
     setEditingIncident(null);
   };
 
   const handleEditDateInput = (text: string) => {
     const numbers = text.replace(/[^\d]/g, '');
-    
+
     let formatted = numbers;
     if (numbers.length >= 3) {
       formatted = numbers.slice(0, 2) + '/' + numbers.slice(2);
@@ -166,7 +224,7 @@ export default function IncidentHistory() {
     if (numbers.length >= 5) {
       formatted = numbers.slice(0, 2) + '/' + numbers.slice(2, 4) + '/' + numbers.slice(4, 8);
     }
-    
+
     setEditDateInput(formatted);
   };
 
@@ -197,7 +255,7 @@ export default function IncidentHistory() {
         { uri: audioUri },
         { shouldPlay: true }
       );
-      
+
       soundRef.current = sound;
       setPlayingId(incidentId);
 
@@ -232,42 +290,35 @@ export default function IncidentHistory() {
     setShowDetailsModal(true);
   };
 
-const exportIncident = async (incident: SavedIncident) => {
-  try {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    const html = generatePDF(incident);
-    const { uri } = await Print.printToFileAsync({ html });
-    
-    console.log("Generated PDF URI:", uri);
-    
-    // Generate filename from location
-    const locationName = incident.location 
-      ? incident.location.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') 
-      : 'Incident';
-    const filename = `${locationName}_Incident.pdf`;
-    
-    // Copy to cache with custom name
-    const newUri = FileSystem.cacheDirectory + filename;
-    
-    console.log("Copying to:", newUri);
-    
-    await FileSystem.copyAsync({
-      from: uri,
-      to: newUri,
-    });
-    
-    console.log("Copy successful, sharing...");
-    
-    await Sharing.shareAsync(newUri, {
-      mimeType: "application/pdf",
-      dialogTitle: filename,
-    });
-  } catch (err: any) {
-    console.error('Export error:', err);
-    Alert.alert("Error", `Failed to export: ${err.message}`);
-  }
-};
+  const exportIncident = async (incident: SavedIncident) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const html = generatePDF(incident);
+      const { uri } = await Print.printToFileAsync({ html });
+
+      const locationName = incident.location
+        ? incident.location.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_')
+        : 'Incident';
+      const filename = `${locationName}_Incident.pdf`;
+
+      const newUri = FileSystem.cacheDirectory + filename;
+
+      await FileSystem.copyAsync({
+        from: uri,
+        to: newUri,
+      });
+
+      await Sharing.shareAsync(newUri, {
+        mimeType: "application/pdf",
+        dialogTitle: filename,
+      });
+    } catch (err: any) {
+      console.error('Export error:', err);
+      Alert.alert("Error", `Failed to export: ${err.message}`);
+    }
+  };
+
   const generatePDF = (incident: SavedIncident): string => {
     return `
       <html>
@@ -307,9 +358,9 @@ const exportIncident = async (incident: SavedIncident) => {
           <div class="section">
             <div class="label">AUDIO EVIDENCE</div>
             <div class="content">
-              ${incident.audioFileName 
-                ? `<span class="audio-badge">✓ AUDIO ATTACHED</span><br/>${incident.audioFileName}` 
-                : 'No audio recording attached'}
+              ${incident.audioFileName
+        ? `<span class="audio-badge">✓ AUDIO ATTACHED</span><br/>${incident.audioFileName}`
+        : 'No audio recording attached'}
             </div>
           </div>
           
@@ -353,37 +404,45 @@ const exportIncident = async (incident: SavedIncident) => {
           <View style={styles.incidentsList}>
             {incidents.map((incident) => (
               <Swipeable
-  key={incident.id}
-  renderRightActions={(progress, dragX) => {
+                key={incident.id}
+                ref={(ref) => { swipeableRefs.current[incident.id] = ref; }}
+                renderRightActions={(progress, dragX) => {
                   const trans = dragX.interpolate({
-                  inputRange: [-200, 0],
-                  outputRange: [0, 200],
-                  extrapolate: 'clamp',
-              });
+                    inputRange: [-200, 0],
+                    outputRange: [0, 200],
+                    extrapolate: 'clamp',
+                  });
 
-    return (
-      <Animated.View style={[styles.rightActions, { transform: [{ translateX: trans }] }]}>
-        <TouchableOpacity 
-          style={styles.editAction}
-          onPress={() => openEditModal(incident)}
-        >
-          <Text style={styles.actionText}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.deleteAction}
-          onPress={() => confirmDelete(incident.id)}
-        >
-          <Text style={styles.actionText}>Delete</Text>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  }}
-        overshootRight={false}
-        overshootLeft={false}
-        enabled={true}
-         friction={2}
-              >                
-              <TouchableOpacity
+                  return (
+                    <Animated.View style={[styles.rightActions, { transform: [{ translateX: trans }] }]}>
+                      <TouchableOpacity
+                        style={styles.editAction}
+                        onPress={() => openEditModal(incident)}
+                      >
+                        <Text style={styles.actionText}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.deleteAction}
+                        onPress={() => confirmDelete(incident)}
+                      >
+                        <Text style={styles.actionText}>Delete</Text>
+                      </TouchableOpacity>
+                    </Animated.View>
+                  );
+                }}
+                overshootRight={false}
+                overshootLeft={false}
+                enabled={true}
+                friction={2}
+                onSwipeableWillOpen={() => {
+                  Object.keys(swipeableRefs.current).forEach(key => {
+                    if (key !== incident.id && swipeableRefs.current[key]) {
+                      swipeableRefs.current[key]?.close();
+                    }
+                  });
+                }}
+              >
+                <TouchableOpacity
                   style={styles.incidentCard}
                   onPress={() => openDetailsModal(incident)}
                   activeOpacity={0.7}
@@ -398,7 +457,7 @@ const exportIncident = async (incident: SavedIncident) => {
                       </Text>
                     )}
                   </View>
-                  
+
                   <Text style={styles.incidentLocation} numberOfLines={1}>
                     {incident.location || 'No location'}
                   </Text>
@@ -408,7 +467,6 @@ const exportIncident = async (incident: SavedIncident) => {
           </View>
         )}
 
-        {/* DETAILS MODAL */}
         <Modal
           visible={showDetailsModal}
           transparent
@@ -416,10 +474,10 @@ const exportIncident = async (incident: SavedIncident) => {
           onRequestClose={() => setShowDetailsModal(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.detailsModalContent}>
+            <BlurView intensity={40} tint="dark" style={styles.detailsModalContent}>
               <ScrollView>
                 <Text style={styles.detailsTitle}>Incident Details</Text>
-                
+
                 {selectedIncident && (
                   <>
                     <View style={styles.detailSection}>
@@ -448,15 +506,31 @@ const exportIncident = async (incident: SavedIncident) => {
                         <Text style={styles.detailLabel}>AUDIO EVIDENCE</Text>
                         <View style={styles.audioPlayerRow}>
                           <Text style={styles.audioFileName} numberOfLines={1}>
-                            {selectedIncident.audioFileName || 'Audio Recording'}
+                            {getCurrentAudioName(selectedIncident)}
                           </Text>
                           <TouchableOpacity
                             style={styles.audioPlayButton}
-                            onPress={() => {
-                              if (playingId === selectedIncident.id) {
-                                pauseAudio();
-                              } else {
-                                playAudio(selectedIncident.audioUri!, selectedIncident.id);
+                            onPress={async () => {
+                              try {
+                                const fileInfo = await FileSystem.getInfoAsync(selectedIncident.audioUri!);
+                                if (!fileInfo.exists) {
+                                  Alert.alert(
+                                    "Audio Unavailable",
+                                    "This audio recording has been deleted and is no longer available."
+                                  );
+                                  return;
+                                }
+
+                                if (playingId === selectedIncident.id) {
+                                  pauseAudio();
+                                } else {
+                                  playAudio(selectedIncident.audioUri!, selectedIncident.id);
+                                }
+                              } catch (error) {
+                                Alert.alert(
+                                  "Audio Unavailable",
+                                  "This audio recording has been deleted and is no longer available."
+                                );
                               }
                             }}
                           >
@@ -501,8 +575,16 @@ const exportIncident = async (incident: SavedIncident) => {
 
                 <TouchableOpacity
                   style={styles.detailsCloseButton}
-                  onPress={() => {
+                  onPress={async () => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+                    if (soundRef.current) {
+                      await soundRef.current.stopAsync();
+                      await soundRef.current.unloadAsync();
+                      soundRef.current = null;
+                    }
+                    setPlayingId(null);
+
                     setShowDetailsModal(false);
                     setSelectedIncident(null);
                   }}
@@ -510,22 +592,21 @@ const exportIncident = async (incident: SavedIncident) => {
                   <Text style={styles.detailsCloseText}>Close</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </BlurView>
           </View>
         </Modal>
 
-        {/* EDIT MODAL */}
         <Modal
           visible={showEditModal}
           transparent
           animationType="none"
           onRequestClose={() => setShowEditModal(false)}
         >
-          <KeyboardAvoidingView 
+          <KeyboardAvoidingView
             style={styles.modalOverlay}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           >
-            <View style={styles.editModalContent}>
+            <BlurView intensity={40} tint="dark" style={styles.editModalContent}>
               <ScrollView>
                 <Text style={styles.detailsTitle}>Edit Incident</Text>
 
@@ -534,7 +615,7 @@ const exportIncident = async (incident: SavedIncident) => {
                   <TextInput
                     style={styles.editInput}
                     placeholder="Name, Badge #, Employee ID, or Department"
-                    placeholderTextColor="#555555"
+                    placeholderTextColor={colors.text.disabled}
                     value={editOfficerInfo}
                     onChangeText={setEditOfficerInfo}
                     multiline
@@ -546,7 +627,7 @@ const exportIncident = async (incident: SavedIncident) => {
                   <TextInput
                     style={styles.editInput}
                     placeholder="e.g., Logan Airport Terminal E"
-                    placeholderTextColor="#555555"
+                    placeholderTextColor={colors.text.disabled}
                     value={editLocation}
                     onChangeText={setEditLocation}
                     multiline
@@ -558,7 +639,7 @@ const exportIncident = async (incident: SavedIncident) => {
                   <TextInput
                     style={[styles.editInput, styles.editTextArea]}
                     placeholder="Describe the incident..."
-                    placeholderTextColor="#555555"
+                    placeholderTextColor={colors.text.disabled}
                     value={editDescription}
                     onChangeText={setEditDescription}
                     multiline
@@ -568,21 +649,21 @@ const exportIncident = async (incident: SavedIncident) => {
 
                 <View style={styles.editSection}>
                   <Text style={styles.editLabel}>DATE & TIME</Text>
-                  
+
                   <View style={styles.dateTimeRow}>
                     <View style={styles.dateTimeInputContainer}>
                       <Text style={styles.dateTimeLabel}>DATE</Text>
                       <TextInput
                         style={styles.dateTimeInput}
                         placeholder="MM/DD/YYYY"
-                        placeholderTextColor="#555555"
+                        placeholderTextColor={colors.text.disabled}
                         value={editDateInput}
                         onChangeText={handleEditDateInput}
                         keyboardType="number-pad"
                         maxLength={10}
                       />
                     </View>
-                    
+
                     <View style={styles.dateTimeInputContainer}>
                       <Text style={styles.dateTimeLabel}>TIME</Text>
                       <TouchableOpacity
@@ -648,7 +729,7 @@ const exportIncident = async (incident: SavedIncident) => {
                   <Text style={styles.editSaveText}>Save Changes</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </BlurView>
           </KeyboardAvoidingView>
         </Modal>
       </ScrollView>
@@ -659,11 +740,11 @@ const exportIncident = async (incident: SavedIncident) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0a0a0f",
+    backgroundColor: colors.background.primary,
   },
   contentContainer: {
-    padding: 20,
-    paddingTop: 30,
+    padding: spacing.xl,
+    paddingTop: spacing.xxxl,
   },
   emptyState: {
     paddingVertical: 80,
@@ -671,23 +752,23 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: "#666666",
+    color: colors.text.disabled,
     fontWeight: "300",
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   emptySubtext: {
     fontSize: 13,
-    color: "#444444",
+    color: colors.text.disabled,
     fontWeight: "300",
   },
   incidentsList: {
-    gap: 20,
+    gap: spacing.xl,
   },
   incidentCard: {
-    padding: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    padding: spacing.xl,
+    backgroundColor: colors.background.card,
     borderLeftWidth: 3,
-    borderLeftColor: "#e74c3c",
+    borderLeftColor: colors.action.danger,
     height: 120,
     justifyContent: "center",
   },
@@ -696,99 +777,101 @@ const styles = StyleSheet.create({
   },
   incidentDate: {
     fontSize: 20,
-    color: "#ffffff",
+    color: colors.text.primary,
     fontWeight: "300",
     marginBottom: 4,
   },
   editedBadge: {
     fontSize: 10,
-    color: "#f39c12",
+    color: colors.category.quickPhrases,
     fontWeight: "500",
     fontStyle: "italic",
   },
   incidentLocation: {
     fontSize: 15,
-    color: "#888888",
+    color: colors.text.disabled,
     fontWeight: "300",
   },
-rightActions: {
-  flexDirection: "row",
-},
+  rightActions: {
+    flexDirection: "row",
+  },
   editAction: {
-    backgroundColor: "#3498db",
+    backgroundColor: colors.action.primary,
     justifyContent: "center",
     alignItems: "center",
     width: 100,
   },
   deleteAction: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.action.danger,
     justifyContent: "center",
     alignItems: "center",
     width: 100,
   },
   actionText: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontWeight: "600",
     fontSize: 16,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: "center",
     alignItems: "center",
   },
   detailsModalContent: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: 'rgba(26, 26, 26, 0.6)',
     borderRadius: 12,
-    padding: 24,
+    padding: spacing.xxl,
     width: "90%",
     maxHeight: "80%",
+    overflow: 'hidden',
   },
   editModalContent: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: 'rgba(26, 26, 26, 0.6)',
     borderRadius: 12,
-    padding: 24,
+    padding: spacing.xxl,
     width: "90%",
     maxHeight: "85%",
+    overflow: 'hidden',
   },
   detailsTitle: {
     fontSize: 20,
     fontWeight: "300",
-    color: "#ffffff",
-    marginBottom: 20,
+    color: colors.text.primary,
+    marginBottom: spacing.xl,
     textAlign: "center",
     letterSpacing: 1,
   },
   detailSection: {
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   detailLabel: {
     fontSize: 12,
     fontWeight: "300",
-    color: "#888888",
-    marginBottom: 8,
+    color: colors.text.disabled,
+    marginBottom: spacing.sm,
     letterSpacing: 1,
     textTransform: "uppercase",
   },
   detailContent: {
     fontSize: 14,
-    color: "#ffffff",
+    color: colors.text.primary,
     lineHeight: 22,
     fontWeight: "300",
   },
   audioPlayerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: spacing.md,
     backgroundColor: "rgba(46, 204, 113, 0.1)",
-    padding: 12,
+    padding: spacing.md,
     borderLeftWidth: 2,
-    borderLeftColor: "#2ecc71",
+    borderLeftColor: colors.action.success,
   },
   audioFileName: {
     flex: 1,
     fontSize: 13,
-    color: "#2ecc71",
+    color: colors.action.success,
     fontWeight: "300",
   },
   audioPlayButton: {
@@ -801,31 +884,31 @@ rightActions: {
   },
   audioPlayIcon: {
     fontSize: 18,
-    color: "#2ecc71",
+    color: colors.action.success,
   },
   editedFooter: {
     fontSize: 11,
-    color: "#666666",
+    color: colors.text.disabled,
     fontStyle: "italic",
     marginTop: 10,
     textAlign: "center",
   },
   detailsActions: {
     flexDirection: "row",
-    gap: 12,
-    marginTop: 20,
-    paddingTop: 20,
+    gap: spacing.md,
+    marginTop: spacing.xl,
+    paddingTop: spacing.xl,
     borderTopWidth: 1,
     borderTopColor: "#333333",
   },
   detailsExportButton: {
     flex: 1,
     padding: 14,
-    backgroundColor: "#3498db",
+    backgroundColor: colors.action.primary,
     alignItems: "center",
   },
   detailsExportText: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontSize: 15,
     fontWeight: "600",
   },
@@ -836,27 +919,27 @@ rightActions: {
     alignItems: "center",
   },
   detailsCloseText: {
-    color: "#888888",
+    color: colors.text.disabled,
     fontSize: 15,
     fontWeight: "300",
   },
   editSection: {
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   editLabel: {
     fontSize: 12,
     fontWeight: "300",
-    color: "#888888",
-    marginBottom: 8,
+    color: colors.text.disabled,
+    marginBottom: spacing.sm,
     letterSpacing: 1,
     textTransform: "uppercase",
   },
   editInput: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: colors.background.card,
     borderLeftWidth: 3,
-    borderLeftColor: "#3498db",
-    padding: 12,
-    color: "#ffffff",
+    borderLeftColor: colors.action.primary,
+    padding: spacing.md,
+    color: colors.text.primary,
     fontSize: 14,
     fontWeight: "300",
     minHeight: 45,
@@ -867,17 +950,17 @@ rightActions: {
   },
   dateTimeRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: spacing.md,
   },
   dateTimeInputContainer: {
     flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: colors.background.card,
     borderLeftWidth: 3,
-    borderLeftColor: "#3498db",
-    padding: 12,
+    borderLeftColor: colors.action.primary,
+    padding: spacing.md,
   },
   dateTimeLabel: {
-    color: "#888888",
+    color: colors.text.disabled,
     fontSize: 11,
     fontWeight: "300",
     marginBottom: 6,
@@ -885,7 +968,7 @@ rightActions: {
     letterSpacing: 0.5,
   },
   dateTimeInput: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontSize: 14,
     fontWeight: "500",
   },
@@ -898,26 +981,26 @@ rightActions: {
     backgroundColor: "rgba(0, 0, 0, 0.8)",
   },
   timePickerContainer: {
-    backgroundColor: "#1a1a1a",
-    marginHorizontal: 20,
+    backgroundColor: colors.background.secondary,
+    marginHorizontal: spacing.xl,
     borderRadius: 12,
     overflow: "hidden",
   },
   timePickerDone: {
-    padding: 16,
-    backgroundColor: "#2ecc71",
+    padding: spacing.lg,
+    backgroundColor: colors.action.success,
     alignItems: "center",
   },
   timePickerDoneText: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontSize: 16,
     fontWeight: "600",
   },
   editActions: {
     flexDirection: "row",
-    gap: 12,
-    marginTop: 20,
-    paddingTop: 20,
+    gap: spacing.md,
+    marginTop: spacing.xl,
+    paddingTop: spacing.xl,
     borderTopWidth: 1,
     borderTopColor: "#333333",
   },
@@ -928,18 +1011,18 @@ rightActions: {
     alignItems: "center",
   },
   editCancelText: {
-    color: "#888888",
+    color: colors.text.disabled,
     fontSize: 15,
     fontWeight: "300",
   },
   editSaveButton: {
     flex: 1,
     padding: 14,
-    backgroundColor: "#2ecc71",
+    backgroundColor: colors.action.success,
     alignItems: "center",
   },
   editSaveText: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontSize: 15,
     fontWeight: "600",
   },

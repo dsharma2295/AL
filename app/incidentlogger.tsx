@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { BlurView } from 'expo-blur';
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
@@ -15,22 +16,22 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-
-
+import { colors } from "../theme/colors";
+import { spacing } from "../theme/spacing";
 interface Recording {
   id: string;
   uri: string;
   duration: number;
   date: Date;
-  customName?: string;  // Add this
+  customName?: string;
 }
-
 
 interface SavedIncident {
   id: string;
   officerInfo: string;
   location: string;
   description: string;
+  audioId?: string;
   audioUri?: string;
   audioFileName?: string;
   date: string;
@@ -49,27 +50,25 @@ export default function IncidentLogger() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [dateError, setDateError] = useState("");
 
-const params = useLocalSearchParams();
-const [description, setDescription] = useState(
-  params.prefilledDescription ? String(params.prefilledDescription) : ""
-);
+  const params = useLocalSearchParams();
+  const [description, setDescription] = useState(
+    params.prefilledDescription ? String(params.prefilledDescription) : ""
+  );
 
-useEffect(() => {
-  loadRecordings();
-  
-  // Check if audio was pre-attached from Audio Recorder
-  if (params.audioId && params.audioUri && params.audioName && params.audioDuration) {
-    const preAttachedAudio: Recording = {
-      id: params.audioId as string,
-      uri: params.audioUri as string,
-      duration: parseInt(params.audioDuration as string),
-      date: new Date(),
-      customName: params.audioName as string,
-    };
-    setSelectedAudio(preAttachedAudio);
-  }
-}, []);
+  useEffect(() => {
+    loadRecordings();
 
+    if (params.audioId && params.audioUri && params.audioName && params.audioDuration) {
+      const preAttachedAudio: Recording = {
+        id: params.audioId as string,
+        uri: params.audioUri as string,
+        duration: parseInt(params.audioDuration as string),
+        date: new Date(),
+        customName: params.audioName as string,
+      };
+      setSelectedAudio(preAttachedAudio);
+    }
+  }, []);
 
   const loadRecordings = async () => {
     try {
@@ -95,20 +94,17 @@ useEffect(() => {
     const day = parseInt(parts[1]);
     const year = parseInt(parts[2]);
 
-    // Validate month (01-12)
     if (isNaN(month) || month < 1 || month > 12) {
       setDateError("Month must be between 01-12");
       return false;
     }
 
-    // Validate year (2020-current year)
     const currentYear = new Date().getFullYear();
     if (isNaN(year) || year < 2020 || year > currentYear) {
       setDateError(`Year must be between 2020-${currentYear}`);
       return false;
     }
 
-    // Validate day based on month
     const daysInMonth = new Date(year, month, 0).getDate();
     if (isNaN(day) || day < 1 || day > daysInMonth) {
       setDateError(`Invalid day for this month (max: ${daysInMonth})`);
@@ -121,7 +117,7 @@ useEffect(() => {
 
   const handleDateInput = (text: string) => {
     const numbers = text.replace(/[^\d]/g, '');
-    
+
     let formatted = numbers;
     if (numbers.length >= 3) {
       formatted = numbers.slice(0, 2) + '/' + numbers.slice(2);
@@ -129,10 +125,9 @@ useEffect(() => {
     if (numbers.length >= 5) {
       formatted = numbers.slice(0, 2) + '/' + numbers.slice(2, 4) + '/' + numbers.slice(4, 8);
     }
-    
+
     setDateInput(formatted);
 
-    // Validate if complete
     if (numbers.length === 8) {
       validateDate(formatted);
     } else {
@@ -164,6 +159,7 @@ useEffect(() => {
       officerInfo,
       location,
       description,
+      audioId: selectedAudio?.id,
       audioUri: selectedAudio?.uri,
       audioFileName: selectedAudio ? (selectedAudio.customName || `Recording from ${formatDateTime(selectedAudio.date)}`) : undefined,
       date: dateInput,
@@ -176,15 +172,15 @@ useEffect(() => {
       const incidents = stored ? JSON.parse(stored) : [];
       incidents.unshift(incident);
       await AsyncStorage.setItem('incidents', JSON.stringify(incidents));
-      
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
+
       Alert.alert(
         "Incident Logged Successfully",
         "Check the Incident History to view your report.",
         [
-          { 
-            text: "OK", 
+          {
+            text: "OK",
             onPress: () => {
               setOfficerInfo("");
               setLocation("");
@@ -197,7 +193,7 @@ useEffect(() => {
           }
         ]
       );
-      
+
     } catch (err) {
       console.error('Save error:', err);
       Alert.alert("Error", "Failed to save incident.");
@@ -219,13 +215,6 @@ useEffect(() => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-const getAudioDisplayText = (audio: Recording): string => {
-  if (audio.customName) {
-    return audio.customName;
-  }
-  return formatDateTime(audio.date);
-};
-
   const removeAudio = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedAudio(undefined);
@@ -234,23 +223,23 @@ const getAudioDisplayText = (audio: Recording): string => {
   const isFormValid = !dateError && dateInput.length === 10;
 
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1 }} 
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={100}
     >
-      <ScrollView 
-        style={styles.container} 
+      <ScrollView
+        style={styles.container}
         contentContainerStyle={styles.contentContainer}
         keyboardShouldPersistTaps="handled"
       >
-        
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Officer Information</Text>
           <TextInput
             style={styles.input}
             placeholder="Name, Badge #, Employee ID, or Department"
-            placeholderTextColor="#555555"
+            placeholderTextColor={colors.text.disabled}
             value={officerInfo}
             onChangeText={setOfficerInfo}
             multiline
@@ -262,7 +251,7 @@ const getAudioDisplayText = (audio: Recording): string => {
           <TextInput
             style={styles.input}
             placeholder="e.g., Logan Airport Terminal E, I-90 Exit 24"
-            placeholderTextColor="#555555"
+            placeholderTextColor={colors.text.disabled}
             value={location}
             onChangeText={setLocation}
             multiline
@@ -274,19 +263,19 @@ const getAudioDisplayText = (audio: Recording): string => {
           <TextInput
             style={[styles.input, styles.textArea]}
             placeholder="Describe the incident in detail..."
-            placeholderTextColor="#555555"
+            placeholderTextColor={colors.text.disabled}
             value={description}
             onChangeText={setDescription}
             multiline
             numberOfLines={8}
           />
-          
+
           {selectedAudio ? (
             <View style={styles.attachedAudioContainer}>
               <Text style={styles.attachedAudioText}>
                 Audio: {selectedAudio.customName || formatDateTime(selectedAudio.date)}
               </Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.removeAudioButton}
                 onPress={removeAudio}
               >
@@ -294,7 +283,7 @@ const getAudioDisplayText = (audio: Recording): string => {
               </TouchableOpacity>
             </View>
           ) : (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.attachButton}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -316,9 +305,9 @@ const getAudioDisplayText = (audio: Recording): string => {
           onRequestClose={() => setShowAudioPicker(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+            <BlurView intensity={40} tint="dark" style={styles.modalContent}>
               <Text style={styles.modalTitle}>Select Recording</Text>
-              
+
               <ScrollView style={styles.recordingsList}>
                 {availableRecordings.length === 0 ? (
                   <Text style={styles.noRecordings}>
@@ -336,8 +325,8 @@ const getAudioDisplayText = (audio: Recording): string => {
                       }}
                     >
                       <Text style={styles.recordingDate}>
-  {rec.customName || formatDateTime(rec.date)}
-</Text>
+                        {rec.customName || formatDateTime(rec.date)}
+                      </Text>
                       <Text style={styles.recordingDuration}>
                         {formatDuration(rec.duration)}
                       </Text>
@@ -352,13 +341,13 @@ const getAudioDisplayText = (audio: Recording): string => {
               >
                 <Text style={styles.modalCloseText}>Cancel</Text>
               </TouchableOpacity>
-            </View>
+            </BlurView>
           </View>
         </Modal>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Date & Time</Text>
-          
+
           <View style={styles.dateTimeRow}>
             <View style={styles.dateTimeInputContainer}>
               <Text style={styles.dateTimeLabel}>DATE</Text>
@@ -368,7 +357,7 @@ const getAudioDisplayText = (audio: Recording): string => {
                   dateError && styles.dateTimeInputError
                 ]}
                 placeholder="MM/DD/YYYY"
-                placeholderTextColor="#555555"
+                placeholderTextColor={colors.text.disabled}
                 value={dateInput}
                 onChangeText={handleDateInput}
                 keyboardType="number-pad"
@@ -379,7 +368,7 @@ const getAudioDisplayText = (audio: Recording): string => {
                 <Text style={styles.errorText}>{dateError}</Text>
               ) : null}
             </View>
-            
+
             <View style={styles.dateTimeInputContainer}>
               <Text style={styles.dateTimeLabel}>TIME</Text>
               <TouchableOpacity
@@ -396,34 +385,33 @@ const getAudioDisplayText = (audio: Recording): string => {
             </View>
           </View>
 
-{showTimePicker && (
-  <Modal transparent visible={showTimePicker}>
-    <View style={styles.timePickerModal}>
-      <View style={styles.timePickerContainer}>
-        <DateTimePicker
-          value={selectedTime}
-          mode="time"
-          display="spinner"
-          onChange={(event, time) => {
-            if (time) {
-              setSelectedTime(time);
-            }
-            // DON'T close here - only close on Done button
-          }}
-        />
-        <TouchableOpacity
-          style={styles.timePickerDone}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setShowTimePicker(false);
-          }}
-        >
-          <Text style={styles.timePickerDoneText}>Done</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  </Modal>
-)}
+          {showTimePicker && (
+            <Modal transparent visible={showTimePicker}>
+              <View style={styles.timePickerModal}>
+                <View style={styles.timePickerContainer}>
+                  <DateTimePicker
+                    value={selectedTime}
+                    mode="time"
+                    display="spinner"
+                    onChange={(event, time) => {
+                      if (time) {
+                        setSelectedTime(time);
+                      }
+                    }}
+                  />
+                  <TouchableOpacity
+                    style={styles.timePickerDone}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowTimePicker(false);
+                    }}
+                  >
+                    <Text style={styles.timePickerDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
+          )}
         </View>
 
         <View style={styles.actionButtons}>
@@ -455,30 +443,30 @@ const getAudioDisplayText = (audio: Recording): string => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0a0a0f",
+    backgroundColor: colors.background.primary,
   },
   contentContainer: {
-    padding: 20,
-    paddingTop: 30,
-    paddingBottom: 40,
+    padding: spacing.xl,
+    paddingTop: spacing.xxxl,
+    paddingBottom: spacing.huge,
   },
   section: {
-    marginBottom: 30,
+    marginBottom: spacing.xxxl,
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: "300",
-    color: "#888888",
-    marginBottom: 12,
+    color: colors.text.disabled,
+    marginBottom: spacing.md,
     letterSpacing: 1,
     textTransform: "uppercase",
   },
   input: {
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: colors.background.card,
     borderLeftWidth: 3,
-    borderLeftColor: "#3498db",
-    padding: 16,
-    color: "#ffffff",
+    borderLeftColor: colors.action.primary,
+    padding: spacing.lg,
+    color: colors.text.primary,
     fontSize: 15,
     fontWeight: "300",
     minHeight: 50,
@@ -488,31 +476,31 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   attachButton: {
-    marginTop: 12,
-    padding: 16,
+    marginTop: spacing.md,
+    padding: spacing.lg,
     backgroundColor: "rgba(46, 204, 113, 0.1)",
     borderLeftWidth: 3,
-    borderLeftColor: "#2ecc71",
+    borderLeftColor: colors.action.success,
     alignItems: "center",
   },
   attachButtonText: {
-    color: "#2ecc71",
+    color: colors.action.success,
     fontSize: 14,
     fontWeight: "300",
     letterSpacing: 0.5,
   },
   attachedAudioContainer: {
-    marginTop: 12,
-    padding: 16,
+    marginTop: spacing.md,
+    padding: spacing.lg,
     backgroundColor: "rgba(46, 204, 113, 0.15)",
     borderLeftWidth: 3,
-    borderLeftColor: "#2ecc71",
+    borderLeftColor: colors.action.success,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   attachedAudioText: {
-    color: "#2ecc71",
+    color: colors.action.success,
     fontSize: 14,
     fontWeight: "500",
     flex: 1,
@@ -526,103 +514,104 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   removeAudioText: {
-    color: "#e74c3c",
+    color: colors.action.danger,
     fontSize: 20,
     fontWeight: "300",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.9)",
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#0a0a0f",
+    backgroundColor: 'rgba(10, 10, 15, 0.6)',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingTop: 20,
+    paddingTop: spacing.xl,
     maxHeight: "70%",
+    overflow: 'hidden',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: "300",
-    color: "#ffffff",
+    color: colors.text.primary,
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: spacing.xl,
     letterSpacing: 1,
   },
   recordingsList: {
     maxHeight: 300,
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
   },
   noRecordings: {
-    color: "#666666",
+    color: colors.text.disabled,
     fontSize: 14,
     textAlign: "center",
-    paddingVertical: 40,
+    paddingVertical: spacing.huge,
     fontWeight: "300",
   },
   recordingOption: {
-    padding: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    padding: spacing.lg,
+    backgroundColor: colors.background.card,
     borderLeftWidth: 3,
-    borderLeftColor: "#2ecc71",
-    marginBottom: 12,
+    borderLeftColor: colors.action.success,
+    marginBottom: spacing.md,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   recordingDate: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontSize: 14,
     fontWeight: "300",
   },
   recordingDuration: {
-    color: "#666666",
+    color: colors.text.disabled,
     fontSize: 13,
   },
   modalCloseButton: {
-    padding: 20,
+    padding: spacing.xl,
     alignItems: "center",
     borderTopWidth: 1,
     borderTopColor: "#333333",
     marginTop: 10,
   },
   modalCloseText: {
-    color: "#888888",
+    color: colors.text.disabled,
     fontSize: 15,
     fontWeight: "300",
   },
   dateTimeRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: spacing.md,
   },
   dateTimeInputContainer: {
     flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: colors.background.card,
     borderLeftWidth: 3,
-    borderLeftColor: "#3498db",
-    padding: 16,
+    borderLeftColor: colors.action.primary,
+    padding: spacing.lg,
   },
   dateTimeLabel: {
-    color: "#888888",
+    color: colors.text.disabled,
     fontSize: 12,
     fontWeight: "300",
-    marginBottom: 8,
+    marginBottom: spacing.sm,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   dateTimeInput: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontSize: 16,
     fontWeight: "500",
   },
   dateTimeInputError: {
-    color: "#e74c3c",
+    color: colors.action.danger,
     borderBottomWidth: 2,
-    borderBottomColor: "#e74c3c",
+    borderBottomColor: colors.action.danger,
   },
   errorText: {
-    color: "#e74c3c",
+    color: colors.action.danger,
     fontSize: 11,
     marginTop: 6,
     fontWeight: "300",
@@ -636,46 +625,46 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.8)",
   },
   timePickerContainer: {
-    backgroundColor: "#1a1a1a",
-    marginHorizontal: 20,
+    backgroundColor: colors.background.secondary,
+    marginHorizontal: spacing.xl,
     borderRadius: 12,
     overflow: "hidden",
   },
   timePickerDone: {
-    padding: 16,
-    backgroundColor: "#2ecc71",
+    padding: spacing.lg,
+    backgroundColor: colors.action.success,
     alignItems: "center",
   },
   timePickerDoneText: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontSize: 16,
     fontWeight: "600",
   },
   actionButtons: {
     flexDirection: "row",
-    gap: 12,
-    marginTop: 30,
+    gap: spacing.md,
+    marginTop: spacing.xxxl,
   },
   backButton: {
     flex: 1,
-    padding: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    padding: spacing.xl,
+    backgroundColor: colors.background.card,
     borderLeftWidth: 3,
-    borderLeftColor: "#666666",
+    borderLeftColor: colors.text.disabled,
     alignItems: "center",
   },
   backButtonText: {
-    color: "#888888",
+    color: colors.text.disabled,
     fontSize: 16,
     fontWeight: "300",
     letterSpacing: 0.5,
   },
   saveButton: {
     flex: 1,
-    padding: 20,
+    padding: spacing.xl,
     backgroundColor: "rgba(46, 204, 113, 0.15)",
     borderLeftWidth: 3,
-    borderLeftColor: "#2ecc71",
+    borderLeftColor: colors.action.success,
     alignItems: "center",
   },
   saveButtonDisabled: {
@@ -684,12 +673,12 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   saveButtonText: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontSize: 16,
     fontWeight: "500",
     letterSpacing: 0.5,
   },
   saveButtonTextDisabled: {
-    color: "#666666",
+    color: colors.text.disabled,
   },
 });

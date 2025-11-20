@@ -1,9 +1,11 @@
+import { BlurView } from 'expo-blur';
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { colors } from "../theme/colors";
+import { spacing } from "../theme/spacing";
 import { ANIMATION_DURATIONS, getSpringConfig } from "../utils/animations";
-
 export default function Scenarios() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -27,7 +29,7 @@ export default function Scenarios() {
 
   const openInfoModal = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
+
     Animated.sequence([
       Animated.timing(infoButtonScale, {
         toValue: 0.85,
@@ -40,14 +42,14 @@ export default function Scenarios() {
         useNativeDriver: true,
       }),
     ]).start();
-    
+
     setTimeout(() => setShowInfoModal(true), 150);
   };
 
   return (
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-        <Animated.View 
+        <Animated.View
           style={[
             styles.cardsContainer,
             { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
@@ -56,7 +58,7 @@ export default function Scenarios() {
           <CategoryCard
             title="What CBP Can Do"
             count="5 items"
-            borderColor="#2ecc71"
+            borderColor={colors.category.canDo}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push({ pathname: "/rightscards", params: { category: "can_do" } });
@@ -66,7 +68,7 @@ export default function Scenarios() {
           <CategoryCard
             title="What CBP Cannot Do"
             count="5 items"
-            borderColor="#e74c3c"
+            borderColor={colors.category.cannotDo}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push({ pathname: "/rightscards", params: { category: "cannot_do" } });
@@ -76,7 +78,7 @@ export default function Scenarios() {
           <CategoryCard
             title="Your Rights"
             count="6 items"
-            borderColor="#3498db"
+            borderColor={colors.category.yourRights}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push({ pathname: "/rightscards", params: { category: "your_rights" } });
@@ -86,17 +88,16 @@ export default function Scenarios() {
           <CategoryCard
             title="Quick Response Phrases"
             count="6 phrases"
-            borderColor="#f39c12"
-onPress={() => {
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  router.push("/quickphrases");
-}}
+            borderColor={colors.category.quickPhrases}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/quickphrases");
+            }}
           />
         </Animated.View>
       </ScrollView>
 
-      {/* FLOATING INFO BUTTON */}
-      <Animated.View style={{ 
+      <Animated.View style={{
         position: "absolute",
         bottom: 55,
         right: 25,
@@ -111,7 +112,6 @@ onPress={() => {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* INFO MODAL */}
       <Modal
         visible={showInfoModal}
         transparent
@@ -119,9 +119,9 @@ onPress={() => {
         onRequestClose={() => setShowInfoModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <BlurView intensity={40} tint="dark" style={styles.modalContent}>
             <Text style={styles.modalTitle}>What is CBP?</Text>
-            
+
             <ScrollView style={styles.modalScroll}>
               <View style={styles.infoSection}>
                 <Text style={styles.infoLabel}>AGENCY</Text>
@@ -182,7 +182,7 @@ onPress={() => {
             >
               <Text style={styles.modalCloseText}>Close</Text>
             </TouchableOpacity>
-          </View>
+          </BlurView>
         </View>
       </Modal>
     </View>
@@ -233,11 +233,11 @@ function CategoryCard({ title, count, borderColor, onPress }: { title: string; c
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: colors.background.primary,
   },
   contentContainer: {
-    padding: 20,
-    paddingTop: 30,
+    padding: spacing.xl,
+    paddingTop: spacing.xxxl,
     paddingBottom: 100,
   },
   cardsContainer: {
@@ -247,18 +247,18 @@ const styles = StyleSheet.create({
     padding: 36,
     borderRadius: 0,
     borderLeftWidth: 3,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: colors.background.card,
   },
   categoryTitle: {
     fontSize: 21,
     fontWeight: "300",
-    color: "#ffffff",
-    marginBottom: 8,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
     letterSpacing: 0.5,
   },
   categoryCount: {
     fontSize: 14,
-    color: "#666666",
+    color: colors.text.disabled,
     fontWeight: "300",
     letterSpacing: 0.5,
   },
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#3498db",
+    backgroundColor: colors.action.primary,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -277,28 +277,29 @@ const styles = StyleSheet.create({
   },
   infoIcon: {
     fontSize: 30,
-    color: "#ffffff",
+    color: colors.text.primary,
     fontWeight: "600",
     fontFamily: "Georgia",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',  // Changed
     justifyContent: "center",
     alignItems: "center",
   },
   modalContent: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: 'rgba(26, 26, 26, 0.6)',  // Changed
     borderRadius: 12,
-    padding: 24,
+    padding: spacing.xxl,
     width: "90%",
     maxHeight: "80%",
+    overflow: 'hidden',  // Add
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "300",
-    color: "#ffffff",
-    marginBottom: 20,
+    color: colors.text.primary,
+    marginBottom: spacing.xl,
     textAlign: "center",
     letterSpacing: 1,
   },
@@ -306,31 +307,31 @@ const styles = StyleSheet.create({
     maxHeight: 400,
   },
   infoSection: {
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   infoLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#3498db",
+    color: colors.action.primary,
     marginBottom: 6,
     letterSpacing: 1,
     textTransform: "uppercase",
   },
   infoText: {
     fontSize: 14,
-    color: "#cccccc",
+    color: colors.text.secondary,
     lineHeight: 22,
     fontWeight: "300",
   },
   modalCloseButton: {
-    padding: 16,
-    backgroundColor: "#3498db",
+    padding: spacing.lg,
+    backgroundColor: colors.action.primary,
     alignItems: "center",
-    marginTop: 20,
+    marginTop: spacing.xl,
     borderRadius: 4,
   },
   modalCloseText: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontSize: 15,
     fontWeight: "600",
   },

@@ -2,6 +2,8 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { colors } from "../theme/colors";
+import { spacing } from "../theme/spacing";
 
 export default function Locations() {
   const [expandedTile, setExpandedTile] = useState<string | null>(null);
@@ -29,29 +31,28 @@ export default function Locations() {
   };
 
   const US_STATES = [
-    "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", 
-    "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", 
-    "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", 
-    "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota", 
-    "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", 
-    "New Hampshire", "New Jersey", "New Mexico", "New York", 
-    "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon", 
-    "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota", 
-    "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", 
+    "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
+    "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
+    "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana",
+    "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
+    "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
+    "New Hampshire", "New Jersey", "New Mexico", "New York",
+    "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
+    "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
+    "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
     "West Virginia", "Wisconsin", "Wyoming"
   ];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <Animated.View 
+      <Animated.View
         style={[
           styles.tilesContainer,
           { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
         ]}
       >
-        {/* TRAFFIC TILE */}
         <View>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.mainTile, styles.trafficTile]}
             onPress={() => toggleExpand("traffic")}
           >
@@ -65,7 +66,7 @@ export default function Locations() {
             <View style={styles.expandedContent}>
               <Text style={styles.stateHeader}>Select State:</Text>
               {US_STATES.map((state) => (
-                <TouchableOpacity 
+                <TouchableOpacity
                   key={state}
                   style={[
                     styles.stateOption,
@@ -94,9 +95,8 @@ export default function Locations() {
           )}
         </View>
 
-        {/* AIRPORT TILE */}
         <View>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.mainTile, styles.airportTile]}
             onPress={() => toggleExpand("airport")}
           >
@@ -108,7 +108,7 @@ export default function Locations() {
 
           {expandedTile === "airport" && (
             <View style={styles.expandedContent}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.subOption, styles.disabledOption]}
                 disabled
               >
@@ -116,7 +116,7 @@ export default function Locations() {
                 <Text style={styles.comingSoon}>Coming Soon</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.subOption}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -136,86 +136,86 @@ export default function Locations() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0a0a0f",
+    backgroundColor: colors.background.primary,
   },
   contentContainer: {
-    padding: 20,
-    paddingTop: 30,
+    padding: spacing.xl,
+    paddingTop: spacing.xxxl,
   },
   tilesContainer: {
     gap: 28,
-    paddingBottom: 30,
+    paddingBottom: spacing.xxxl,
   },
   mainTile: {
     padding: 36,
     borderRadius: 0,
     borderLeftWidth: 3,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: colors.background.card,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   trafficTile: {
-    borderLeftColor: "#e74c3c",
+    borderLeftColor: colors.action.danger,
   },
   airportTile: {
-    borderLeftColor: "#3498db",
+    borderLeftColor: colors.action.primary,
   },
   mainTileText: {
     fontSize: 21,
     fontWeight: "300",
-    color: "#ffffff",
+    color: colors.text.primary,
     letterSpacing: 0.5,
   },
   expandIndicator: {
     fontSize: 32,
-    color: "#ffffff",
+    color: colors.text.primary,
     fontWeight: "200",
   },
   expandedContent: {
-    marginTop: 16,
-    marginLeft: 20,
-    gap: 12,
+    marginTop: spacing.lg,
+    marginLeft: spacing.xl,
+    gap: spacing.md,
   },
   subOption: {
-    padding: 20,
+    padding: spacing.xl,
     backgroundColor: "rgba(255, 255, 255, 0.03)",
     borderLeftWidth: 2,
-    borderLeftColor: "#3498db",
+    borderLeftColor: colors.action.primary,
   },
   disabledOption: {
     opacity: 0.4,
-    borderLeftColor: "#666666",
+    borderLeftColor: colors.text.disabled,
   },
   subOptionText: {
     fontSize: 16,
-    color: "#ffffff",
+    color: colors.text.primary,
     fontWeight: "300",
   },
   disabledText: {
     fontSize: 16,
-    color: "#666666",
+    color: colors.text.disabled,
     fontWeight: "300",
   },
   comingSoon: {
     fontSize: 12,
-    color: "#666666",
+    color: colors.text.disabled,
     fontStyle: "italic",
     marginTop: 4,
   },
   stateHeader: {
     fontSize: 14,
-    color: "#888888",
+    color: colors.text.disabled,
     fontWeight: "300",
-    marginBottom: 8,
+    marginBottom: spacing.sm,
     letterSpacing: 1,
     textTransform: "uppercase",
   },
   stateOption: {
-    padding: 16,
+    padding: spacing.lg,
     backgroundColor: "rgba(255, 255, 255, 0.03)",
     borderLeftWidth: 2,
-    borderLeftColor: "#e74c3c",
+    borderLeftColor: colors.action.danger,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -226,14 +226,14 @@ const styles = StyleSheet.create({
   },
   stateText: {
     fontSize: 15,
-    color: "#ffffff",
+    color: colors.text.primary,
     fontWeight: "300",
   },
   disabledStateText: {
-    color: "#666666",
+    color: colors.text.disabled,
   },
   availableIndicator: {
     fontSize: 18,
-    color: "#e74c3c",
+    color: colors.action.danger,
   },
 });

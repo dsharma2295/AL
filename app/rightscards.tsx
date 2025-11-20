@@ -1,3 +1,4 @@
+import { BlurView } from 'expo-blur';
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
@@ -17,6 +18,9 @@ import {
 import { GestureHandlerRootView, Swipeable } from "react-native-gesture-handler";
 import type { RightCard } from "../data/customs-rights";
 import { customsScenario } from "../data/customs-rights";
+import { colors } from "../theme/colors";
+import { spacing } from "../theme/spacing";
+
 
 export default function RightsCards() {
   const params = useLocalSearchParams();
@@ -84,10 +88,10 @@ export default function RightsCards() {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "critical": return "#e74c3c";
-      case "important": return "#f39c12";
-      case "info": return "#95a5a6";
-      default: return "#95a5a6";
+      case "critical": return colors.priority.critical;
+      case "important": return colors.priority.important;
+      case "info": return colors.priority.info;
+      default: return colors.priority.info;
     }
   };
 
@@ -102,10 +106,10 @@ export default function RightsCards() {
 
   const getCategoryColor = () => {
     switch (category) {
-      case "can_do": return "#2ecc71";
-      case "cannot_do": return "#e74c3c";
-      case "your_rights": return "#3498db";
-      default: return "#3498db";
+      case "can_do": return colors.category.canDo;
+      case "cannot_do": return colors.category.cannotDo;
+      case "your_rights": return colors.category.yourRights;
+      default: return colors.category.yourRights;
     }
   };
 
@@ -118,63 +122,63 @@ export default function RightsCards() {
     }
   };
 
-const renderLeftActions = (card: RightCard, progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
-  const trans = dragX.interpolate({
-    inputRange: [0, 120],
-    outputRange: [-120, 0],
-    extrapolate: 'clamp',
-  });
+  const renderLeftActions = (card: RightCard, progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
+    const trans = dragX.interpolate({
+      inputRange: [0, 120],
+      outputRange: [-120, 0],
+      extrapolate: 'clamp',
+    });
 
-  return (
-    <Animated.View 
-      style={[
-        styles.swipeActionContainer,
-        { transform: [{ translateX: trans }] }
-      ]}
-    >
-      <TouchableOpacity 
-        style={styles.logIncidentAction}
-        onPress={() => handleLogIncident(card.title)}
-        activeOpacity={0.8}
+    return (
+      <Animated.View
+        style={[
+          styles.swipeActionContainer,
+          { transform: [{ translateX: trans }] }
+        ]}
       >
-        <Text style={styles.actionText}>Log Incident</Text>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
+        <TouchableOpacity
+          style={styles.logIncidentAction}
+          onPress={() => handleLogIncident(card.title)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.actionText}>Log Incident</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
   const renderCard = (card: RightCard) => {
     const borderColor = getCategoryColor();
     const priorityColor = getPriorityColor(card.priority);
     const isBookmarked = bookmarkedCards.has(card.id);
-const isSwiped = swipedCardId === card.id;
-console.log(`Card ${card.id} - isSwiped:`, isSwiped, 'swipedCardId:', swipedCardId);
+    const isSwiped = swipedCardId === card.id;
+
     return (
       <Swipeable
         key={card.id}
         ref={(ref) => { swipeableRefs.current[card.id] = ref; }}
-          renderLeftActions={(progress, dragX) => renderLeftActions(card, progress, dragX)}
-          overshootLeft={false}
-          overshootRight={false}  // ← Add this line
-          onSwipeableWillOpen={() => {
-          // Close all other swipeables
+        renderLeftActions={(progress, dragX) => renderLeftActions(card, progress, dragX)}
+        overshootLeft={false}
+        overshootRight={false}
+        onSwipeableWillOpen={() => {
           Object.keys(swipeableRefs.current).forEach(key => {
             if (key !== card.id && swipeableRefs.current[key]) {
-            swipeableRefs.current[key]?.close();
-          }
-           });
-            setSwipedCardId(card.id);
-           }}
-          onSwipeableClose={() => setSwipedCardId(null)}  
+              swipeableRefs.current[key]?.close();
+            }
+          });
+          setSwipedCardId(card.id);
+        }}
+        onSwipeableClose={() => setSwipedCardId(null)}
       >
         <TouchableOpacity
-style={[
-  styles.card, 
-  { 
-    borderLeftColor: borderColor, 
-    borderLeftWidth: isSwiped ? 0 : 4 
-  }
-]}          onPress={() => openCard(card)}
+          style={[
+            styles.card,
+            {
+              borderLeftColor: borderColor,
+              borderLeftWidth: 4
+            }
+          ]}
+          onPress={() => openCard(card)}
           activeOpacity={0.7}
         >
           <View style={styles.cardHeader}>
@@ -245,11 +249,13 @@ style={[
             activeOpacity={1}
             onPress={closeModal}
           >
-            <View
+            <BlurView
+              intensity={40}
+              tint="dark"
               style={[
                 styles.modal,
                 {
-                  borderLeftColor: selectedCard ? getCategoryColor() : "#3498db",
+                  borderLeftColor: selectedCard ? getCategoryColor() : colors.category.yourRights,
                 },
               ]}
             >
@@ -313,7 +319,7 @@ style={[
                   </View>
                 </>
               )}
-            </View>
+            </BlurView>
           </TouchableOpacity>
         </Modal>
       </SafeAreaView>
@@ -324,36 +330,36 @@ style={[
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: colors.background.primary,
   },
   header: {
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
     paddingVertical: 5,
     borderBottomWidth: 10,
-    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    borderBottomColor: colors.border.default,
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: "700",
-    color: "#fff",
+    color: colors.text.primary,
     textAlign: "center",
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
+    padding: spacing.lg,
   },
- card: {
-  backgroundColor: "rgba(255, 255, 255, 0.05)",
-  padding: 16,
-  paddingRight: 70,
-  paddingBottom: 40,
-  marginBottom: 20,
-  position: "relative",
-},
+  card: {
+    backgroundColor: colors.background.card,
+    padding: spacing.lg,
+    paddingRight: 70,
+    paddingBottom: 40,
+    marginBottom: spacing.xl,
+    position: "relative",
+  },
   cardHeader: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   priorityBadge: {
     flexDirection: "row",
@@ -373,101 +379,102 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 19,
     fontWeight: "700",
-    color: "#fff",
+    color: colors.text.primary,
     lineHeight: 24,
     marginBottom: 10,
   },
   cardSummary: {
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.7)",
+    color: colors.text.secondary,
     lineHeight: 20,
     marginBottom: 18,
   },
   tapHint: {
     fontSize: 12,
-    color: "rgba(255, 255, 255, 0.4)",
+    color: colors.text.tertiary,
     fontStyle: "italic",
   },
   cardIcons: {
     position: "absolute",
-    bottom: 12,
-    right: 12,
+    bottom: spacing.md,
+    right: spacing.md,
     flexDirection: "row",
-    gap: 16,
+    gap: spacing.lg,
     alignItems: "center",
   },
   iconText: {
     fontSize: 25,
-    color: "rgba(255, 255, 255, 0.5)",
+    color: colors.text.tertiary,
   },
-swipeActionContainer: {
-  marginBottom: 20,  // Match card marginBottom
-},
-logIncidentAction: {
-  backgroundColor: "#f39c12",
-  justifyContent: "center",
-  alignItems: "center",
-  width: 120,
-  height: '100%',  // Now takes height from container
-  paddingHorizontal: 20,
-},
+  swipeActionContainer: {
+    marginBottom: spacing.xl,
+  },
+  logIncidentAction: {
+    backgroundColor: colors.category.quickPhrases,
+    justifyContent: "center",
+    alignItems: "center",
+    width: 120,
+    height: '100%',
+    paddingHorizontal: spacing.xl,
+  },
   actionText: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontWeight: "600",
     fontSize: 14,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.92)",
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',  // Darken from 0.5 to 0.7
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: spacing.xl,
   },
   modal: {
-    backgroundColor: "#1a1a1a",
-    padding: 24,
+    backgroundColor: 'rgba(26, 26, 26, 0.8)',  // Adjust transparency
+    padding: spacing.xxl,
     width: "90%",
     maxHeight: "75%",
     borderLeftWidth: 4,
+    overflow: 'hidden',
   },
   modalHeader: {
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   modalTitle: {
     fontSize: 22,
     fontWeight: "700",
-    color: "#fff",
+    color: colors.text.primary,
     lineHeight: 28,
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   modalContent: {
     fontSize: 16,
-    color: "rgba(255, 255, 255, 0.9)",
+    color: colors.text.secondary,
     lineHeight: 24,
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   legalBasisSection: {
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   legalBasisLabel: {
     fontSize: 11,
-    color: "rgba(255, 255, 255, 0.5)",
+    color: colors.text.tertiary,
     marginBottom: 6,
     letterSpacing: 0.5,
   },
   legalBasisLink: {
     fontSize: 14,
-    color: "#3498db",
+    color: colors.action.primary,
     lineHeight: 20,
   },
   legalBasisText: {
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.6)",
+    color: colors.text.secondary,
     lineHeight: 20,
   },
   modalIcons: {
     flexDirection: "row",
-    gap: 16,
+    gap: spacing.lg,
     justifyContent: "flex-end",
     alignItems: "center",
   },

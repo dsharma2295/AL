@@ -2,6 +2,8 @@ import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { colors } from "../theme/colors";
+import { spacing } from "../theme/spacing";
 
 export default function IncidentHub() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -24,7 +26,7 @@ export default function IncidentHub() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <Animated.View 
+      <Animated.View
         style={[
           styles.cardsContainer,
           { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
@@ -59,38 +61,38 @@ export default function IncidentHub() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0a0a0f",
+    backgroundColor: colors.background.primary,
   },
   contentContainer: {
-    padding: 20,
-    paddingTop: 30,
+    padding: spacing.xl,
+    paddingTop: spacing.xxxl,
   },
   cardsContainer: {
     gap: 28,
-    paddingBottom: 30,
+    paddingBottom: spacing.xxxl,
   },
   card: {
     padding: 36,
     borderRadius: 0,
     borderLeftWidth: 3,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: colors.background.card,
   },
   logNowCard: {
-    borderLeftColor: "#e74c3c",
+    borderLeftColor: colors.action.danger,
   },
   historyCard: {
-    borderLeftColor: "#3498db",
+    borderLeftColor: colors.action.primary,
   },
   cardTitle: {
     fontSize: 21,
     fontWeight: "300",
-    color: "#ffffff",
-    marginBottom: 8,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
     letterSpacing: 0.5,
   },
   cardSubtext: {
     fontSize: 14,
-    color: "#666666",
+    color: colors.text.disabled,
     fontWeight: "300",
   },
 });

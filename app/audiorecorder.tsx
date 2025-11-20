@@ -1,13 +1,31 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
+import { BlurView } from 'expo-blur';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Animated, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { GestureHandlerRootView, Swipeable } from "react-native-gesture-handler";
 import { Recording, useRecordings } from '../context/RecordingsContext';
+import { colors } from "../theme/colors";
+import { spacing } from "../theme/spacing";
 import { ANIMATION_DURATIONS } from '../utils/animations';
+interface SavedIncident {
+  id: string;
+  officerInfo: string;
+  location: string;
+  description: string;
+  audioId?: string;
+  audioUri?: string;
+  audioFileName?: string;
+  date: string;
+  time: string;
+  createdAt: Date;
+  editedAt?: Date;
+}
 
 export default function AudioRecorder() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -24,12 +42,13 @@ export default function AudioRecorder() {
   const [renameId, setRenameId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [renameText, setRenameText] = useState("");
-  
+
   const soundRef = useRef<Audio.Sound | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const buttonScaleAnim = useRef(new Animated.Value(1)).current;
-const [isSwipeActive, setIsSwipeActive] = useState(false);
+  const [isSwipeActive, setIsSwipeActive] = useState(false);
+  const swipeableRefs = useRef<{ [key: string]: Swipeable | null }>({});
 
   useEffect(() => {
     if (!isRecording) {
@@ -52,107 +71,94 @@ const [isSwipeActive, setIsSwipeActive] = useState(false);
     }
   }, [isRecording]);
 
-async function startRecording() {
-  console.log("=== START RECORDING ===");
-  console.log("Select mode:", selectMode);
-  console.log("Swipe active:", isSwipeActive);
-  console.log("Playing ID:", playingId);
-  
-  // Block if select mode, swipe active, OR playing audio
-  if (selectMode || isSwipeActive || playingId) {
-    console.log("BLOCKED - select/swipe/playback active");
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    return;
-  }
-
-  try {
-    console.log("1. Starting recording...");
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    
-    Animated.sequence([
-      Animated.timing(buttonScaleAnim, {
-        toValue: 0.9,
-        duration: ANIMATION_DURATIONS.fast,
-        useNativeDriver: true,
-      }),
-      Animated.timing(buttonScaleAnim, {
-        toValue: 1,
-        duration: ANIMATION_DURATIONS.fast,
-        useNativeDriver: true,
-      }),
-    ]).start();
-    
-    console.log("2. Setting UI state...");
-    setIsRecording(true);
-    setRecordingDuration(0);
-    
-    console.log("3. Requesting permission...");
-    const permission = await Audio.requestPermissionsAsync();
-    console.log("Permission result:", permission);
-    
-    if (!permission.granted) {
-      console.log("Permission denied");
-      setIsRecording(false);
-      Alert.alert("Permission Required", "Please allow microphone access.");
+  async function startRecording() {
+    if (selectMode || isSwipeActive || playingId) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       return;
     }
 
-    console.log("4. Setting audio mode...");
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: true,
-      playsInSilentModeIOS: true,
-    });
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-    console.log("5. Creating recording...");
-    const { recording } = await Audio.Recording.createAsync(
-      Audio.RecordingOptionsPresets.HIGH_QUALITY
-    );
-    
-    console.log("6. Recording created successfully");
-    setRecording(recording);
+      Animated.sequence([
+        Animated.spring(buttonScaleAnim, {
+          toValue: 0.9,
+          friction: 3,
+          tension: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(buttonScaleAnim, {
+          toValue: 1,
+          friction: 3,
+          tension: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      setIsRecording(true);
+      setRecordingDuration(0);
 
-    timerRef.current = setInterval(() => {
-      setRecordingDuration(prev => prev + 1);
-    }, 1000);
+      const permission = await Audio.requestPermissionsAsync();
 
-    console.log("Recording started!");
+      if (!permission.granted) {
+        setIsRecording(false);
+        Alert.alert("Permission Required", "Please allow microphone access.");
+        return;
+      }
 
-  } catch (err: any) {
-    console.error('!!! RECORDING ERROR !!!', err);
-    console.error('Error message:', err.message);
-    setIsRecording(false);
-    Alert.alert("Error", `Failed to start recording: ${err.message}`);
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+
+      setRecording(recording);
+
+      timerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+
+    } catch (err: any) {
+      console.error('Recording error:', err);
+      setIsRecording(false);
+      Alert.alert("Error", `Failed to start recording: ${err.message}`);
+    }
   }
-}  async function stopRecording() {
+
+  async function stopRecording() {
     if (!recording) return;
 
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      
+
       Animated.sequence([
-        Animated.timing(buttonScaleAnim, {
+        Animated.spring(buttonScaleAnim, {
           toValue: 0.9,
-          duration: ANIMATION_DURATIONS.fast,
+          friction: 3,
+          tension: 200,
           useNativeDriver: true,
         }),
-        Animated.timing(buttonScaleAnim, {
+        Animated.spring(buttonScaleAnim, {
           toValue: 1,
-          duration: ANIMATION_DURATIONS.fast,
+          friction: 3,
+          tension: 200,
           useNativeDriver: true,
         }),
       ]).start();
-      
+
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
 
       setIsRecording(false);
-      
+
       await recording.stopAndUnloadAsync();
-      
+
       const uri = recording.getURI();
-      
+
       if (uri) {
         const newRecording: Recording = {
           id: Date.now().toString(),
@@ -160,13 +166,13 @@ async function startRecording() {
           duration: recordingDuration,
           date: new Date(),
         };
-        
+
         await addRecording(newRecording);
       }
-      
+
       setRecording(null);
       setRecordingDuration(0);
-      
+
     } catch (err: any) {
       console.error('Stop error:', err);
       setIsRecording(false);
@@ -199,7 +205,7 @@ async function startRecording() {
             const positionSeconds = Math.floor(status.positionMillis / 1000);
             setPlaybackPosition(positionSeconds);
           }
-          
+
           if (status.isLoaded && status.didJustFinish) {
             setPlayingId(null);
             soundRef.current = null;
@@ -207,7 +213,7 @@ async function startRecording() {
           }
         }
       );
-      
+
       soundRef.current = sound;
       setPlayingId(recordingItem.id);
 
@@ -230,42 +236,37 @@ async function startRecording() {
     }
   }
 
-async function shareRecording(recordingItem: Recording) {
-  try {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    const canShare = await Sharing.isAvailableAsync();
-    if (!canShare) {
-      Alert.alert("Error", "Sharing not available");
-      return;
+  async function shareRecording(recordingItem: Recording) {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert("Error", "Sharing not available");
+        return;
+      }
+
+      const displayName = getRecordingDisplayName(recordingItem);
+      const sanitizedName = displayName.replace(/\//g, '-').replace(/:/g, '-');
+      const fileName = `${sanitizedName}.m4a`;
+
+      const newUri = FileSystem.cacheDirectory + fileName;
+
+      await FileSystem.copyAsync({
+        from: recordingItem.uri,
+        to: newUri,
+      });
+
+      await Sharing.shareAsync(newUri, {
+        mimeType: "audio/x-m4a",
+        dialogTitle: displayName,
+      });
+    } catch (err: any) {
+      console.error('Share error:', err);
+      Alert.alert("Error", `Failed to share: ${err.message}`);
     }
-
-    // Get custom display name and sanitize for filename
-    const displayName = getRecordingDisplayName(recordingItem);
-    // Replace invalid filename characters
-    const sanitizedName = displayName.replace(/\//g, '-').replace(/:/g, '-');
-    const fileName = `${sanitizedName}.m4a`;
-    
-    console.log("Sanitized filename:", fileName);
-    
-    // Copy to cache with custom name
-    const newUri = FileSystem.cacheDirectory + fileName;
-    
-    await FileSystem.copyAsync({
-      from: recordingItem.uri,
-      to: newUri,
-    });
-
-    // Share the renamed file
-    await Sharing.shareAsync(newUri, {
-      mimeType: "audio/x-m4a",
-      dialogTitle: displayName,
-    });
-  } catch (err: any) {
-    console.error('Share error:', err);
-    Alert.alert("Error", `Failed to share: ${err.message}`);
   }
-}
+
   function toggleSelectMode() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectMode(!selectMode);
@@ -283,23 +284,16 @@ async function shareRecording(recordingItem: Recording) {
     setSelectedIds(newSelected);
   }
 
-
-
   function openMultiDeleteModal() {
     if (selectedIds.size === 0) {
       Alert.alert("No Selection", "Please select at least one recording.");
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
     setShowMultiActionModal(true);
   }
 
-
-
   async function handleMultiDelete() {
-    console.log("=== MULTI DELETE CALLED ===");
-    
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setShowMultiActionModal(false);
 
@@ -313,10 +307,10 @@ async function shareRecording(recordingItem: Recording) {
 
       const updatedRecordings = recordings.filter(r => !selectedIds.has(r.id));
       setRecordings(updatedRecordings);
-      
+
       setSelectMode(false);
       setSelectedIds(new Set());
-      
+
     } catch (err) {
       console.error('Multi-delete error:', err);
       Alert.alert("Error", "Failed to delete recordings.");
@@ -339,24 +333,58 @@ async function shareRecording(recordingItem: Recording) {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await updateRecording(renameId, { customName: renameText.trim() });
-    
+
     setShowRenameModal(false);
     setRenameId(null);
     setRenameText("");
   }
 
-  function openDeleteModal(id: string) {
+  async function openDeleteModal(id: string) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setDeleteId(id);
-    setShowDeleteModal(true);
+
+    try {
+      const incidentsData = await AsyncStorage.getItem("incidents");
+
+      if (incidentsData) {
+        const incidents = JSON.parse(incidentsData);
+        const attachedIncident = incidents.find((inc: any) => inc.audioId === id);
+
+        if (attachedIncident) {
+          Alert.alert(
+            "Recording In Use",
+            `This recording is attached to an incident at "${attachedIncident.location || 'Unknown Location'}".\n\nIt will remain accessible in that incident even after deletion from here.\n\nContinue?`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Remove from List",
+                style: "destructive",
+                onPress: () => {
+                  setDeleteId(id);
+                  setShowDeleteModal(true);
+                }
+              }
+            ]
+          );
+          return;
+        }
+      }
+
+      setDeleteId(id);
+      setShowDeleteModal(true);
+
+    } catch (error) {
+      console.error("Error checking incidents:", error);
+      setDeleteId(id);
+      setShowDeleteModal(true);
+    }
   }
 
   async function handleDelete() {
     if (!deleteId) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
     setShowDeleteModal(false);
+
     const idToDelete = deleteId;
     setDeleteId(null);
 
@@ -368,17 +396,41 @@ async function shareRecording(recordingItem: Recording) {
         setPlayingId(null);
       }
 
-      await deleteRec(idToDelete);
+      const incidentsData = await AsyncStorage.getItem("incidents");
+      let isAttachedToIncident = false;
+
+      if (incidentsData) {
+        const incidents = JSON.parse(incidentsData);
+        isAttachedToIncident = incidents.some((inc: any) => inc.audioId === idToDelete);
+      }
+
+      if (isAttachedToIncident) {
+        await deleteRec(idToDelete);
+      } else {
+        const recordingToDelete = recordings.find(r => r.id === idToDelete);
+
+        if (recordingToDelete) {
+          try {
+            await FileSystem.deleteAsync(recordingToDelete.uri, { idempotent: true });
+          } catch (fileErr) {
+            console.error("File deletion error:", fileErr);
+          }
+        }
+
+        await deleteRec(idToDelete);
+      }
+
     } catch (err) {
       console.error('Delete error:', err);
+      Alert.alert("Error", "Failed to delete recording");
     }
   }
 
   function logIncidentWithAudio(recordingItem: Recording) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+
     const displayName = getRecordingDisplayName(recordingItem);
-    
+
     router.push({
       pathname: "/incidentlogger",
       params: {
@@ -421,9 +473,10 @@ async function shareRecording(recordingItem: Recording) {
     }
     return formatDate(rec.date);
   }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
         <View style={styles.recordingSection}>
           <View style={styles.recordingControlArea}>
             {isRecording ? (
@@ -443,17 +496,22 @@ async function shareRecording(recordingItem: Recording) {
               </>
             ) : (
               <>
-                <Animated.View style={{ 
+                <Animated.View style={{
                   transform: [
                     { scale: Animated.multiply(pulseAnim, buttonScaleAnim) }
-                  ] 
+                  ]
                 }}>
                   <TouchableOpacity
                     style={styles.recordButtonOuter}
                     onPress={startRecording}
                     activeOpacity={0.8}
                   >
-                    <View style={styles.recordButtonInner} />
+                    <LinearGradient
+                      colors={['#e74c3c', '#c0392b']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.recordButtonInner}
+                    />
                   </TouchableOpacity>
                 </Animated.View>
                 <Text style={styles.tapToRecord}>Tap to Record</Text>
@@ -462,9 +520,9 @@ async function shareRecording(recordingItem: Recording) {
           </View>
 
           <Text style={styles.hint}>
-            {isRecording 
-              ? "Audio stored locally on your device" 
-              : selectMode 
+            {isRecording
+              ? "Audio stored locally on your device"
+              : selectMode
                 ? "Tap to select recordings"
                 : "Swipe Left: Rename/Delete • Swipe Right: Log Incident"}
           </Text>
@@ -478,61 +536,61 @@ async function shareRecording(recordingItem: Recording) {
               </Text>
 
               <View style={styles.headerActions}>
-  <TouchableOpacity
-    style={styles.selectButton}
-    onPress={toggleSelectMode}
-  >
-    <Text style={styles.selectButtonText}>
-      {selectMode ? "Cancel" : "Select"}
-    </Text>
-  </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.selectButton}
+                  onPress={toggleSelectMode}
+                >
+                  <Text style={styles.selectButtonText}>
+                    {selectMode ? "Cancel" : "Select"}
+                  </Text>
+                </TouchableOpacity>
 
-  {selectMode && selectedIds.size > 0 && (
-    <TouchableOpacity
-      style={[styles.headerActionButton, styles.headerDeleteButton]}
-      onPress={openMultiDeleteModal}
-    >
-      <Text style={styles.headerActionIcon}>×</Text>
-    </TouchableOpacity>
-  )}
-</View>
+                {selectMode && selectedIds.size > 0 && (
+                  <TouchableOpacity
+                    style={[styles.headerActionButton, styles.headerDeleteButton]}
+                    onPress={openMultiDeleteModal}
+                  >
+                    <Text style={styles.headerActionIcon}>×</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
-{recordings.map((item) => (
-  <RecordingItem
-    key={item.id}
-    item={item}
-    isPlaying={playingId === item.id}
-    playbackPosition={playbackPosition}
-    selectMode={selectMode}
-    isSelected={selectedIds.has(item.id)}
-    onToggleSelect={() => toggleSelection(item.id)}
-onSwipeStart={() => {
-  setIsSwipeActive(true);
-  // Auto-pause if playing
-  if (playingId) {
-    pausePlayback();
-  }
-}}    onSwipeEnd={() => setIsSwipeActive(false)}
-    onPlay={() => {
-      if (playingId === item.id) {
-        pausePlayback();
-      } else {
-        playRecording(item);
-      }
-    }}
-    onShare={() => shareRecording(item)}
-    onRename={() => openRenameModal(item.id)}
-    onDelete={() => openDeleteModal(item.id)}
-    onLogIncident={() => logIncidentWithAudio(item)}
-    getDisplayName={getRecordingDisplayName}
-    formatDuration={formatDuration}
-  />
-))}
+            {recordings.map((item) => (
+              <RecordingItem
+                key={item.id}
+                item={item}
+                isPlaying={playingId === item.id}
+                playbackPosition={playbackPosition}
+                selectMode={selectMode}
+                isSelected={selectedIds.has(item.id)}
+                swipeableRefs={swipeableRefs}
+                onToggleSelect={() => toggleSelection(item.id)}
+                onSwipeStart={() => {
+                  setIsSwipeActive(true);
+                  if (playingId) {
+                    pausePlayback();
+                  }
+                }}
+                onSwipeEnd={() => setIsSwipeActive(false)}
+                onPlay={() => {
+                  if (playingId === item.id) {
+                    pausePlayback();
+                  } else {
+                    playRecording(item);
+                  }
+                }}
+                onShare={() => shareRecording(item)}
+                onRename={() => openRenameModal(item.id)}
+                onDelete={() => openDeleteModal(item.id)}
+                onLogIncident={() => logIncidentWithAudio(item)}
+                getDisplayName={getRecordingDisplayName}
+                formatDuration={formatDuration}
+              />
+            ))}
           </View>
         )}
 
-        {/* RENAME MODAL */}
         <Modal
           visible={showRenameModal}
           transparent
@@ -540,12 +598,12 @@ onSwipeStart={() => {
           onRequestClose={() => setShowRenameModal(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+            <BlurView intensity={40} tint="dark" style={styles.modalContent}>
               <Text style={styles.modalTitle}>Rename Recording</Text>
               <TextInput
                 style={styles.modalInput}
                 placeholder="Enter name (e.g., Officer Smith)"
-                placeholderTextColor="#666666"
+                placeholderTextColor={colors.text.disabled}
                 value={renameText}
                 onChangeText={setRenameText}
                 autoFocus
@@ -570,11 +628,10 @@ onSwipeStart={() => {
                   <Text style={styles.modalConfirmText}>Save</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </BlurView>
           </View>
         </Modal>
 
-        {/* DELETE MODAL */}
         <Modal
           visible={showDeleteModal}
           transparent
@@ -582,7 +639,7 @@ onSwipeStart={() => {
           onRequestClose={() => setShowDeleteModal(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+            <BlurView intensity={40} tint="dark" style={styles.modalContent}>
               <Text style={styles.modalTitle}>Delete Recording</Text>
               <Text style={styles.modalMessage}>
                 Are you sure you want to delete this recording? This action cannot be undone.
@@ -605,58 +662,58 @@ onSwipeStart={() => {
                   <Text style={styles.modalConfirmText}>Delete</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </BlurView>
           </View>
         </Modal>
 
-{/* MULTI-DELETE MODAL */}
-<Modal
-  visible={showMultiActionModal}
-  transparent
-  animationType="none"
-  onRequestClose={() => setShowMultiActionModal(false)}
->
-  <View style={styles.modalOverlay}>
-    <View style={styles.modalContent}>
-      <Text style={styles.modalTitle}>Delete Recordings</Text>
-      <Text style={styles.modalMessage}>
-        Delete {selectedIds.size} recording{selectedIds.size > 1 ? 's' : ''}? This action cannot be undone.
-      </Text>
-      <View style={styles.modalButtons}>
-        <TouchableOpacity
-          style={styles.modalCancel}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setShowMultiActionModal(false);
-          }}
+        <Modal
+          visible={showMultiActionModal}
+          transparent
+          animationType="none"
+          onRequestClose={() => setShowMultiActionModal(false)}
         >
-          <Text style={styles.modalCancelText}>Cancel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.modalConfirm, styles.modalDelete]}
-          onPress={handleMultiDelete}
-        >
-          <Text style={styles.modalConfirmText}>Delete</Text>
-        </TouchableOpacity>
+          <View style={styles.modalOverlay}>
+            <BlurView intensity={40} tint="dark" style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Delete Recordings</Text>
+              <Text style={styles.modalMessage}>
+                Delete {selectedIds.size} recording{selectedIds.size > 1 ? 's' : ''}? This action cannot be undone.
+              </Text>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancel}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowMultiActionModal(false);
+                  }}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalConfirm, styles.modalDelete]}
+                  onPress={handleMultiDelete}
+                >
+                  <Text style={styles.modalConfirmText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            </BlurView>
           </View>
-        </View>
-      </View>
-    </Modal>      
-  </ScrollView>
-</GestureHandlerRootView>
+        </Modal>
+      </ScrollView>
+    </GestureHandlerRootView>
   );
 }
 
-function RecordingItem({ 
-  item, 
+function RecordingItem({
+  item,
   isPlaying,
   playbackPosition,
   selectMode,
   isSelected,
+  swipeableRefs,
   onToggleSelect,
   onSwipeStart,
   onSwipeEnd,
-  onPlay, 
+  onPlay,
   onShare,
   onRename,
   onDelete,
@@ -669,6 +726,7 @@ function RecordingItem({
   playbackPosition: number;
   selectMode: boolean;
   isSelected: boolean;
+  swipeableRefs: React.MutableRefObject<{ [key: string]: Swipeable | null }>;
   onToggleSelect: () => void;
   onSwipeStart: () => void;
   onSwipeEnd: () => void;
@@ -679,7 +737,7 @@ function RecordingItem({
   onLogIncident: () => void;
   getDisplayName: (rec: Recording) => string;
   formatDuration: (seconds: number) => string;
-}) {  
+}) {
   const renderRightActions = (progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
     const trans = dragX.interpolate({
       inputRange: [-200, 0],
@@ -688,19 +746,19 @@ function RecordingItem({
     });
 
     return (
-      <Animated.View 
+      <Animated.View
         style={[
-          styles.rightActions, 
+          styles.rightActions,
           { transform: [{ translateX: trans }] }
         ]}
       >
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.renameAction}
           onPress={onRename}
         >
           <Text style={styles.actionText}>Rename</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.deleteAction}
           onPress={onDelete}
         >
@@ -719,7 +777,7 @@ function RecordingItem({
 
     return (
       <Animated.View style={{ transform: [{ translateX: trans }] }}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.logIncidentAction}
           onPress={onLogIncident}
           activeOpacity={0.8}
@@ -784,32 +842,40 @@ function RecordingItem({
   }
 
   return (
-<Swipeable
-  renderLeftActions={renderLeftActions}
-  renderRightActions={renderRightActions}
-  overshootLeft={false}
-  overshootRight={false}
-  onSwipeableWillOpen={onSwipeStart}
-  onSwipeableClose={onSwipeEnd}
->
-  {content}
-</Swipeable>
+    <Swipeable
+      ref={(ref) => { swipeableRefs.current[item.id] = ref; }}
+      renderLeftActions={renderLeftActions}
+      renderRightActions={renderRightActions}
+      overshootLeft={false}
+      overshootRight={false}
+      onSwipeableWillOpen={() => {
+        Object.keys(swipeableRefs.current).forEach(key => {
+          if (key !== item.id && swipeableRefs.current[key]) {
+            swipeableRefs.current[key]?.close();
+          }
+        });
+        onSwipeStart();
+      }}
+      onSwipeableClose={onSwipeEnd}
+    >
+      {content}
+    </Swipeable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0a0a0f",
+    backgroundColor: colors.background.primary,
   },
   contentContainer: {
-    padding: 20,
-    paddingTop: 40,
-    paddingBottom: 40,
+    padding: spacing.xl,
+    paddingTop: spacing.huge,
+    paddingBottom: spacing.huge,
   },
   recordingSection: {
     alignItems: "center",
-    marginBottom: 60,
+    marginBottom: spacing.massive,
   },
   recordingControlArea: {
     height: 280,
@@ -828,28 +894,27 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#e74c3c",
   },
   tapToRecord: {
     fontSize: 16,
-    color: "#888888",
+    color: colors.text.disabled,
     fontWeight: "300",
     letterSpacing: 1,
-    marginTop: 20,
+    marginTop: spacing.xl,
   },
   recordingIndicator: {
     fontSize: 14,
-    color: "#e74c3c",
+    color: colors.action.danger,
     fontWeight: "600",
     letterSpacing: 3,
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   timer: {
     fontSize: 50,
-    color: "#ffffff",
+    color: colors.text.primary,
     fontWeight: "200",
     fontVariant: ["tabular-nums"],
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   stopButtonOuter: {
     width: 120,
@@ -862,26 +927,26 @@ const styles = StyleSheet.create({
   stopButtonInner: {
     width: 50,
     height: 50,
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.text.primary,
     borderRadius: 10,
   },
   stopText: {
     fontSize: 16,
-    color: "#ffffff",
+    color: colors.text.primary,
     fontWeight: "300",
     letterSpacing: 1,
-    marginTop: 20,  
+    marginTop: spacing.xl,
   },
   hint: {
     fontSize: 11,
-    color: "#555555",
-    marginTop: 20,
+    color: colors.text.disabled,
+    marginTop: spacing.xl,
     textAlign: "center",
     fontWeight: "300",
     letterSpacing: 0.5,
   },
   recordingsList: {
-    gap: 12,
+    gap: spacing.md,
   },
   listHeaderRow: {
     flexDirection: "row",
@@ -892,78 +957,76 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: spacing.md,
   },
-
   listHeader: {
     fontSize: 14,
-    color: "#888888",
+    color: colors.text.disabled,
     fontWeight: "300",
     letterSpacing: 1,
     textTransform: "uppercase",
   },
-selectButton: {
-  paddingVertical: 6,
-  paddingHorizontal: 16,
-  backgroundColor: "rgba(52, 152, 219, 0.15)",
-  borderLeftWidth: 2,
-  borderLeftColor: "#3498db",
-  height: 36,
-  justifyContent: "center",
-},
-headerActionButton: {
-  width: 36,
-  height: 36,
-  backgroundColor: "rgba(52, 152, 219, 0.15)",
-  alignItems: "center",
-  justifyContent: "center",
-  borderRadius: 4,
-},
-headerDeleteButton: {
-  backgroundColor: "rgba(231, 76, 60, 0.15)",
-  borderLeftWidth: 2,
-  borderLeftColor: "#e74c3c",
-},
+  selectButton: {
+    paddingVertical: 6,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: "rgba(52, 152, 219, 0.15)",
+    borderLeftWidth: 2,
+    borderLeftColor: colors.action.primary,
+    height: 36,
+    justifyContent: "center",
+  },
+  headerActionButton: {
+    width: 36,
+    height: 36,
+    backgroundColor: "rgba(52, 152, 219, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 4,
+  },
+  headerDeleteButton: {
+    backgroundColor: "rgba(231, 76, 60, 0.15)",
+    borderLeftWidth: 2,
+    borderLeftColor: colors.action.danger,
+  },
   selectButtonText: {
-    color: "#3498db",
+    color: colors.action.primary,
     fontSize: 13,
     fontWeight: "500",
     letterSpacing: 0.5,
   },
-  
   headerActionIcon: {
     fontSize: 20,
-    color: "#ffffff",
+    color: colors.text.primary,
     fontWeight: "300",
   },
   recordingCard: {
-    padding: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    padding: spacing.xl,
+    backgroundColor: colors.background.card,
     borderLeftWidth: 3,
-    borderLeftColor: "#2ecc71",
+    borderLeftColor: colors.action.success,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   checkbox: {
-    marginRight: 16,
+    marginRight: spacing.lg,
   },
   checkboxInner: {
     width: 24,
     height: 24,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: "#666666",
+    borderColor: colors.text.disabled,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: colors.background.card,
   },
   checkboxSelected: {
-    backgroundColor: "#3498db",
-    borderColor: "#3498db",
+    backgroundColor: colors.action.primary,
+    borderColor: colors.action.primary,
   },
   checkmark: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontSize: 16,
     fontWeight: "bold",
   },
@@ -972,23 +1035,23 @@ headerDeleteButton: {
   },
   recordingDate: {
     fontSize: 15,
-    color: "#ffffff",
+    color: colors.text.primary,
     fontWeight: "300",
     marginBottom: 5,
   },
   recordingDuration: {
     fontSize: 13,
-    color: "#666666",
+    color: colors.text.disabled,
     fontWeight: "300",
   },
   playbackTimer: {
     fontSize: 13,
-    color: "#2ecc71",
+    color: colors.action.success,
     fontWeight: "500",
   },
   recordingActions: {
     flexDirection: "row",
-    gap: 12,
+    gap: spacing.md,
   },
   actionButton: {
     width: 44,
@@ -999,75 +1062,76 @@ headerDeleteButton: {
   },
   actionIcon: {
     fontSize: 20,
-    color: "#ffffff",
+    color: colors.text.primary,
   },
   rightActions: {
     flexDirection: "row",
   },
   renameAction: {
-    backgroundColor: "#3498db",
+    backgroundColor: colors.action.primary,
     justifyContent: "center",
     alignItems: "center",
     width: 100,
   },
   deleteAction: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.action.danger,
     justifyContent: "center",
     alignItems: "center",
     width: 100,
   },
   logIncidentAction: {
-    backgroundColor: "#f39c12",
+    backgroundColor: colors.category.quickPhrases,
     justifyContent: "center",
     alignItems: "center",
     width: 120,
     height: '100%',
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.xl,
   },
   actionText: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontWeight: "600",
     fontSize: 14,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: "center",
     alignItems: "center",
   },
   modalContent: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: 'rgba(26, 26, 26, 0.6)',
     borderRadius: 12,
-    padding: 24,
+    padding: spacing.xxl,
     width: "85%",
+    overflow: 'hidden',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: "300",
-    color: "#ffffff",
-    marginBottom: 16,
+    color: colors.text.primary,
+    marginBottom: spacing.lg,
     textAlign: "center",
     letterSpacing: 1,
   },
   modalMessage: {
     fontSize: 14,
-    color: "#cccccc",
-    marginBottom: 20,
+    color: colors.text.secondary,
+    marginBottom: spacing.xl,
     textAlign: "center",
     lineHeight: 20,
   },
   modalInput: {
     backgroundColor: "rgba(255, 255, 255, 0.1)",
     borderLeftWidth: 3,
-    borderLeftColor: "#3498db",
-    padding: 16,
-    color: "#ffffff",
+    borderLeftColor: colors.action.primary,
+    padding: spacing.lg,
+    color: colors.text.primary,
     fontSize: 15,
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   modalButtons: {
     flexDirection: "row",
-    gap: 12,
+    gap: spacing.md,
   },
   modalCancel: {
     flex: 1,
@@ -1076,21 +1140,21 @@ headerDeleteButton: {
     alignItems: "center",
   },
   modalCancelText: {
-    color: "#888888",
+    color: colors.text.disabled,
     fontSize: 15,
     fontWeight: "300",
   },
   modalConfirm: {
     flex: 1,
     padding: 14,
-    backgroundColor: "#3498db",
+    backgroundColor: colors.action.primary,
     alignItems: "center",
   },
   modalDelete: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: colors.action.danger,
   },
   modalConfirmText: {
-    color: "#ffffff",
+    color: colors.text.primary,
     fontSize: 15,
     fontWeight: "600",
   },

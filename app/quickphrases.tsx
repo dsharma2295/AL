@@ -3,6 +3,8 @@ import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { customsScenario } from "../data/customs-rights";
+import { colors } from "../theme/colors";
+import { spacing } from "../theme/spacing";
 
 export default function QuickPhrases() {
   const phrases = customsScenario.quickPhrases;
@@ -44,7 +46,7 @@ export default function QuickPhrases() {
 
         {phrases.map((item) => {
           const isBookmarked = bookmarkedPhrases.has(item.id);
-          
+
           return (
             <View key={item.id} style={styles.phraseCard}>
               <Text style={styles.situation}>{item.situation}</Text>
@@ -61,7 +63,7 @@ export default function QuickPhrases() {
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   style={{ marginTop: 5 }}
                 >
-                <Text style={styles.iconText}>⧉</Text>                
+                  <Text style={styles.iconText}>⧉</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => toggleBookmark(item.id)}
@@ -83,91 +85,91 @@ export default function QuickPhrases() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: colors.background.primary,
   },
   header: {
-  paddingHorizontal: 20,
-  paddingTop: 50,       // Increase top padding significantly
-  paddingBottom: 5,
-  borderBottomWidth: 10,
-  borderBottomColor: "rgba(255, 255, 255, 0.1)",
-},
+    paddingHorizontal: spacing.xl,
+    paddingTop: 50,
+    paddingBottom: 5,
+    borderBottomWidth: 10,
+    borderBottomColor: colors.border.default,
+  },
   headerTitle: {
     fontSize: 28,
     fontWeight: "700",
-    color: "#fff",
+    color: colors.text.primary,
     textAlign: "center",
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
+    padding: spacing.lg,
   },
   introCard: {
     backgroundColor: "rgba(0, 0, 0, 0.1)",
-    padding: 16,
-    marginBottom: 20,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
     borderLeftWidth: 0,
-    borderLeftColor: "#000000ff",
+    borderLeftColor: colors.background.primary,
   },
   introText: {
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.8)",
+    color: colors.text.secondary,
     lineHeight: 25,
     textAlign: "center",
   },
   phraseCard: {
-  backgroundColor: "rgba(255, 255, 255, 0.05)",
-  padding: 16,
-  paddingRight: 70,      // Add this
-  paddingBottom: 40,     // Add this
-  marginBottom: 20,
-  borderLeftWidth: 0,
-  borderLeftColor: "#f39c12",
-  position: "relative",
-},
+    backgroundColor: colors.background.card,
+    padding: spacing.lg,
+    paddingRight: 70,
+    paddingBottom: 40,
+    marginBottom: spacing.xl,
+    borderLeftWidth: 0,
+    borderLeftColor: colors.category.quickPhrases,
+    position: "relative",
+  },
   situation: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#fff",
-    marginBottom: 16,
+    color: colors.text.primary,
+    marginBottom: spacing.lg,
     lineHeight: 30,
     textAlign: "center",
-     paddingLeft: 45,
+    paddingLeft: 45,
   },
- phraseBox: {
-  backgroundColor: "rgba(243, 156, 18, 0.1)",  // ORANGE tint (was green)
-  padding: 12,
-  marginBottom: 16,
-  borderLeftWidth: 2,
-  borderRightWidth: 2,
-  borderLeftColor: "#f39c12",  // ORANGE
-  borderRightColor: "#f39c12",
-  width: "120%",  // Extend beyond card width
-},
-phrase: {
-  fontSize: 15,
-  color: "#f39c12",  // ORANGE (was green)
-  lineHeight: 22,
-  fontStyle: "italic",
-},
+  phraseBox: {
+    backgroundColor: "rgba(243, 156, 18, 0.1)",
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderLeftWidth: 2,
+    borderRightWidth: 2,
+    borderLeftColor: colors.category.quickPhrases,
+    borderRightColor: colors.category.quickPhrases,
+    width: "120%",
+  },
+  phrase: {
+    fontSize: 15,
+    color: colors.category.quickPhrases,
+    lineHeight: 22,
+    fontStyle: "italic",
+  },
   explanation: {
     fontSize: 13,
-    color: "rgba(255, 255, 255, 0.6)",
+    color: colors.text.secondary,
     lineHeight: 19,
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
-cardIcons: {
-  position: "absolute",
-  bottom: 11,
-  right: 12,
-  flexDirection: "row",
-  gap: 16,
-  alignItems: "center",  // Add this
-},
+  cardIcons: {
+    position: "absolute",
+    bottom: 11,
+    right: spacing.md,
+    flexDirection: "row",
+    gap: spacing.lg,
+    alignItems: "center",
+  },
   iconText: {
     fontSize: 25,
-    color: "rgba(255, 255, 255, 0.5)",
+    color: colors.text.tertiary,
   },
 });
